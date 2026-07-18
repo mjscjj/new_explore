@@ -96,25 +96,26 @@ html, body {
 
 /* ===== 卡通形象 ===== */
 .orb.character {
-  width: 220px;
-  height: 220px;
-  border-radius: 50%;
+  width: 340px;
+  height: 320px;
+  border-radius: 28px;
   position: relative;
   overflow: hidden;
-  background: radial-gradient(circle at 50% 35%, #eaf1ff, #cdd9f5 75%);
+  background: radial-gradient(circle at 50% 30%, #eaf1ff, #cdd9f5 80%);
   border: 3px solid rgba(91, 140, 255, 0.25);
-  box-shadow: 0 8px 30px rgba(91, 140, 255, 0.18);
+  box-shadow: 0 12px 40px rgba(91, 140, 255, 0.2);
   transition: box-shadow 0.35s, border-color 0.35s, transform 0.35s;
 }
 
-/* 表情图叠放，默认全部隐藏，靠 data-expr 显示对应一张 */
+/* 表情图叠放，默认全部隐藏，靠 data-expr 显示对应一张。
+   contain + 顶部对齐：完整露出人物上半身与动作（手、相机、挥手）。 */
 .orb.character .expr {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  object-position: 50% 22%;
+  object-fit: contain;
+  object-position: 50% 100%;
   opacity: 0;
   transition: opacity 0.28s ease;
   pointer-events: none;
