@@ -1,0 +1,31 @@
+providers/CONTRACT.md
+  s_0eb66e0091a4f5::t_fd60dca51abc29 56,67,69,73-76
+providers/gemini/proxy.js
+  s_0eb66e0091a4f5::t_1a2557c81dab10 146-171,173-192,257-269
+providers/tools/codex.js
+  s_0eb66e0091a4f5::t_23ec12133f93b7 36
+public/app.js
+  s_0eb66e0091a4f5::t_006a0469b34743 138-196,338,361
+public/providers/gemini-client.js
+  s_0eb66e0091a4f5::t_f163965adf12e0 24
+public/styles.css
+  s_0eb66e0091a4f5::t_966a652c273c59 326-373
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "934be5d46e6b9ddf008562369ecfb3a4ad81c454",
+  "prompts": {},
+  "sessions": {
+    "s_0eb66e0091a4f5": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "38eadee2-79ce-4c74-bf94-e35ce184a765",
+        "model": "unknown"
+      },
+      "human_author": "chujiejie.1 <chujiejie.1@bytedance.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
