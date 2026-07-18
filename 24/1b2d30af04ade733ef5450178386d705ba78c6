@@ -1,0 +1,25 @@
+public/app.js
+  s_1f385a84b7251c::t_b2ebe044734d98 71-82
+public/index.html
+  s_1f385a84b7251c::t_db7b99aac3fe1f 34-40
+public/styles.css
+  s_1f385a84b7251c::t_3e254a126862a2 97-100,103-107,109-117,119-132,134-137,139-141,143-145,147-149,152-155,157,159-163
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "241b2d30af04ade733ef5450178386d705ba78c6",
+  "prompts": {},
+  "sessions": {
+    "s_1f385a84b7251c": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "dfe61551-0f45-4682-a332-5fc188a10d4b",
+        "model": "unknown"
+      },
+      "human_author": "chujiejie.1 <chujiejie.1@bytedance.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
