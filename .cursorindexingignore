@@ -1,0 +1,37 @@
+# ===== Cursor 索引排除 =====
+# 只影响 codebase 索引(embedding),不影响手动打开/@引用文件
+# 目的: 减少后台索引对大目录的文件遍历 I/O
+
+# 依赖 / 包
+**/node_modules/
+**/venv/
+**/.venv/
+**/vendor/
+
+# 构建产物
+**/dist/
+**/build/
+**/out/
+**/.next/
+**/target/
+**/.turbo/
+**/*.egg-info/
+
+# 缓存 / 中间产物
+**/__pycache__/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.cache/
+**/coverage/
+**/.git/objects/
+
+# 日志 / 大产物 / 模型 / 媒体
+**/outputs/
+**/*.log
+**/*.bin
+**/*.pt
+**/*.gguf
+**/*.onnx
+**/*.mp4
+**/*.wav
