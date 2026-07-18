@@ -14,8 +14,8 @@ function buildSessionConfig(config = {}) {
   // 关键：format 必须是 "pcm_s16le"（16-bit 有符号小端），与前端 Int16Array 播放一致。
   // 若用 "pcm" 豆包会返回 float32@48k，被当成 int16 播放就是“滋滋滋”噪音。
   const tts = { audio_config: { channel: 1, format: "pcm_s16le", sample_rate: 24000 } };
-  // 豆包音色：config.voice 若提供则作为 speaker
-  if (config.voice) tts.audio_config.speaker = config.voice;
+  // 豆包音色：speaker 必须放在 tts 顶层（不是 audio_config 里），否则不生效
+  if (config.voice) tts.speaker = config.voice;
   return {
     dialog: {
       bot_name: "小助手",
