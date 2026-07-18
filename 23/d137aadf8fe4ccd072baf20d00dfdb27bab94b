@@ -1,0 +1,21 @@
+public/styles.css
+  s_a6b00ef3f748c2::t_51884cf68d06da 99-101,104,106,110-111,117-118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "23d137aadf8fe4ccd072baf20d00dfdb27bab94b",
+  "prompts": {},
+  "sessions": {
+    "s_a6b00ef3f748c2": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "078fd253-2136-47f8-aa22-d565c78c7efe",
+        "model": "unknown"
+      },
+      "human_author": "chujiejie.1 <chujiejie.1@bytedance.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
