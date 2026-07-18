@@ -1,0 +1,21 @@
+providers/doubao/proxy.js
+  s_ef9a3abef796c6::t_437e60ab39204c 53-54,95,98-99,101-107,114-119,122,130,136-139,141-142
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "171214fa0b7513d80f51b351240b9b991fb7c2a9",
+  "prompts": {},
+  "sessions": {
+    "s_ef9a3abef796c6": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "a99b2ba0-f776-4ed1-bab0-67df458ea53b",
+        "model": "unknown"
+      },
+      "human_author": "chujiejie.1 <chujiejie.1@bytedance.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
