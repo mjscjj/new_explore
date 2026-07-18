@@ -1,0 +1,55 @@
+.env.example
+  s_a6b00ef3f748c2::t_d6e3252542edb4 1-10
+.gitignore
+  s_a6b00ef3f748c2::t_76034cddc3fd98 1-4
+README.md
+  s_a6b00ef3f748c2::t_ca465e90b95b08 1-96
+package-lock.json
+  s_a6b00ef3f748c2::t_76ad5d2a2e5ad4 1-863
+package.json
+  s_a6b00ef3f748c2::t_0b620262ae977f 1-16
+providers/CONTRACT.md
+  s_a6b00ef3f748c2::t_85bdd2ca7527c5 1-64
+providers/doubao/protocol.js
+  s_a6b00ef3f748c2::t_d81eba332c8832 1-121
+providers/doubao/proxy.js
+  s_a6b00ef3f748c2::t_e901a1efa9fc3e 1-179
+providers/gemini/proxy.js
+  s_a6b00ef3f748c2::t_33b13fafc5385d 1-167
+public/app.js
+  s_a6b00ef3f748c2::t_f289f7dc083621 1-300
+public/core/audio-player.js
+  s_a6b00ef3f748c2::t_c7f1ea609bc1d7 1-84
+public/core/audio-recorder.js
+  s_a6b00ef3f748c2::t_801621d9447736 1-56
+public/core/pcm-recorder-worklet.js
+  s_a6b00ef3f748c2::t_31c997df0d8343 1-50
+public/index.html
+  s_a6b00ef3f748c2::t_5ce33b646bd986 1-124
+public/providers/doubao-client.js
+  s_a6b00ef3f748c2::t_67a5cf036a6465 1-50
+public/providers/gemini-client.js
+  s_a6b00ef3f748c2::t_e0c6d9c219baae 1-50
+public/styles.css
+  s_a6b00ef3f748c2::t_b465a38b1ef6fe 1-305
+server.js
+  s_a6b00ef3f748c2::t_d6202b615d39ef 1-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "968c82d61b03d975180ede099c13aab04b96af04",
+  "prompts": {},
+  "sessions": {
+    "s_a6b00ef3f748c2": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "078fd253-2136-47f8-aa22-d565c78c7efe",
+        "model": "unknown"
+      },
+      "human_author": "chujiejie.1 <chujiejie.1@bytedance.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
