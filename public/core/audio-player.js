@@ -12,13 +12,18 @@ export class AudioPlayer {
     this.sources = new Set();
     this.onStateChange = null; // (playing:boolean) => void
     this._playing = false;
+    // 抖动缓冲：首块到达后先垫一段再排播，用来吸收跨境网络抖动，避免块晚到时断续。
+    // 代价是首字多等 ~jitterBufferSec。听感断续时调大，觉得延迟高时调小。
+    this.jitterBufferSec = 0.15;
+    this._underruns = 0; // 统计：排播时发现已“饿死”（nextTime 落后于当前时间）的次数
   }
 
   _ensureCtx() {
     if (!this.ctx) {
       // 不指定 sampleRate，交给硬件；Web Audio 会在播放时把 24k buffer 重采样到硬件率
       this.ctx = new AudioContext();
-      this.nextTime = this.ctx.currentTime;
+      // 首块起播前先垫一段抖动缓冲，让后续晚到的块有时间赶上
+      this.nextTime = this.ctx.currentTime + this.jitterBufferSec;
     }
     if (this.ctx.state === "suspended") this.ctx.resume();
   }
@@ -49,7 +54,12 @@ export class AudioPlayer {
     src.connect(this.ctx.destination);
 
     const now = this.ctx.currentTime;
-    if (this.nextTime < now) this.nextTime = now;
+    // nextTime 落后于当前时间 = 缓冲被耗尽（块晚到，饿死）。
+    // 此时不立即硬接（会断续），而是重新垫回抖动缓冲，给后续块留出赶上的余量。
+    if (this.nextTime < now) {
+      this._underruns++;
+      this.nextTime = now + this.jitterBufferSec;
+    }
     src.start(this.nextTime);
     this.nextTime += buffer.duration;
 
@@ -70,7 +80,8 @@ export class AudioPlayer {
       } catch (_) {}
     }
     this.sources.clear();
-    if (this.ctx) this.nextTime = this.ctx.currentTime;
+    // 打断后下一轮回复重新垫抖动缓冲
+    if (this.ctx) this.nextTime = this.ctx.currentTime + this.jitterBufferSec;
     this._setPlaying(false);
   }
 

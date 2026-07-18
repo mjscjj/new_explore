@@ -216,6 +216,7 @@ function connect() {
   connectBtn.disabled = true;
 
   player = new AudioPlayer(24000);
+  window.__player = player; // 调试：控制台可看 __player._underruns / 调 __player.jitterBufferSec
   player.onStateChange = (playing) => {
     if (connected) { setStatus(playing ? "对方说话中…" : "正在聆听…", playing ? "speaking" : "listening"); setOrb(playing ? "speaking" : "listening"); }
   };
