@@ -1,0 +1,25 @@
+providers/gemini/proxy.js
+  s_a6b00ef3f748c2::t_5c1bf78c8dd4c5 85-88,91-100,152,156-166
+public/app.js
+  s_a6b00ef3f748c2::t_972d1ee8dae4c0 23-24,55-56,218-219,287-288,298-299
+public/index.html
+  s_a6b00ef3f748c2::t_2835a11f1ff7ac 90-123,128-148,150-151,156-169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "02185659e1cb163a8ad8bedd706baa648018ea54",
+  "prompts": {},
+  "sessions": {
+    "s_a6b00ef3f748c2": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "078fd253-2136-47f8-aa22-d565c78c7efe",
+        "model": "unknown"
+      },
+      "human_author": "chujiejie.1 <chujiejie.1@bytedance.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
