@@ -11,7 +11,9 @@ const APP_KEY = "PlgvMymc7f3tQnJ6"; // 对话服务固定 app key
 const DEFAULT_SYSTEM_ROLE = "你是一个友好的中文语音助手，回答自然、简洁、口语化。";
 
 function buildSessionConfig(config = {}) {
-  const tts = { audio_config: { channel: 1, format: "pcm", sample_rate: 24000 } };
+  // 关键：format 必须是 "pcm_s16le"（16-bit 有符号小端），与前端 Int16Array 播放一致。
+  // 若用 "pcm" 豆包会返回 float32@48k，被当成 int16 播放就是“滋滋滋”噪音。
+  const tts = { audio_config: { channel: 1, format: "pcm_s16le", sample_rate: 24000 } };
   // 豆包音色：config.voice 若提供则作为 speaker
   if (config.voice) tts.audio_config.speaker = config.voice;
   return {
