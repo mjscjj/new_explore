@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>实时语音助手 · 豆包 / Gemini</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <span class="dot" id="statusDot"></span>
+          <div>
+            <h1>实时语音助手</h1>
+            <p class="sub" id="subtitle">端到端实时语音，可打断</p>
+          </div>
+        </div>
+        <div class="top-actions">
+          <div class="provider-switch" id="providerSwitch">
+            <button class="prov-btn active" data-provider="doubao">豆包</button>
+            <button class="prov-btn" data-provider="gemini">Gemini</button>
+          </div>
+          <button id="settingsBtn" class="icon-btn" title="设置" aria-label="设置">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3"></circle>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <main class="stage">
+        <div id="orb" class="orb"></div>
+        <div id="status" class="status">未连接</div>
+        <button id="connectBtn" class="connect-btn">开始通话</button>
+      </main>
+
+      <section class="transcript">
+        <div id="log" class="log">
+          <div class="empty-hint" id="emptyHint">
+            <p>点击「开始通话」，授权麦克风后直接开口说话</p>
+            <p class="tiny">说话时机器人会实时用语音回复，可随时打断它</p>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- 设置面板 -->
+    <div id="settingsOverlay" class="overlay hidden">
+      <div class="panel">
+        <div class="panel-head">
+          <h2>设置</h2>
+          <button id="closeSettings" class="icon-btn" aria-label="关闭">✕</button>
+        </div>
+
+        <div class="panel-body">
+          <label class="field">
+            <span class="field-label">人设 / 系统提示 <span class="tag-both">豆包·Gemini</span></span>
+            <textarea id="systemPrompt" rows="4"
+              placeholder="描述机器人的性格、说话风格、任务…"></textarea>
+          </label>
+
+          <!-- 以下为 Gemini 专属设置 -->
+          <div class="gemini-only">
+            <label class="field">
+              <span class="field-label">音色 <span class="tag-gemini">Gemini</span></span>
+              <select id="voice">
+                <option value="">默认</option>
+                <option value="Kore">Kore（沉稳中性）</option>
+                <option value="Puck">Puck（活泼）</option>
+                <option value="Charon">Charon（低沉）</option>
+                <option value="Fenrir">Fenrir（有力）</option>
+                <option value="Aoede">Aoede（轻快）</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span class="field-label">模型 <span class="tag-gemini">Gemini</span></span>
+              <select id="model">
+                <option value="models/gemini-3.1-flash-live-preview">gemini-3.1-flash-live-preview（推荐）</option>
+                <option value="models/gemini-2.5-flash-native-audio-latest">gemini-2.5-flash-native-audio（情感更丰富）</option>
+                <option value="models/gemini-3.5-live-translate-preview">gemini-3.5-live-translate（实时翻译）</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span class="field-label">
+                回答随机性（temperature） <span class="tag-gemini">Gemini</span>
+                <b id="tempVal">0.7</b>
+              </span>
+              <input id="temperature" type="range" min="0" max="1.5" step="0.1" value="0.7" />
+            </label>
+
+            <label class="field">
+              <span class="field-label">打断/断句灵敏度 <span class="tag-gemini">Gemini</span></span>
+              <select id="vad">
+                <option value="LOW">低（不易被打断，适合吵环境）</option>
+                <option value="" selected>中（默认）</option>
+                <option value="HIGH">高（更灵敏，说话即打断）</option>
+              </select>
+            </label>
+
+            <label class="field field-row">
+              <span class="field-label">
+                摄像头视觉 <span class="tag-gemini">Gemini</span>
+                <span class="field-hint">让机器人能"看"，由它自己决定何时看摄像头</span>
+              </span>
+              <input id="camera" type="checkbox" class="switch" />
+            </label>
+          </div>
+
+          <p class="note">修改后需重新点「开始通话」才生效。设置保存在浏览器本地。摄像头首次使用会请求授权。豆包音色/模型固定，暂不可调。</p>
+        </div>
+
+        <div class="panel-foot">
+          <button id="saveSettings" class="connect-btn small">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

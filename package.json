@@ -1,0 +1,16 @@
+{
+  "name": "realtime-voice-chat",
+  "version": "1.0.0",
+  "description": "实时语音对话：支持豆包端到端实时语音 与 Gemini Live 切换，provider 隔离可扩展",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "ws": "^8.18.0"
+  }
+}
