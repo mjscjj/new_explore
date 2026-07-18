@@ -50,6 +50,8 @@ export function handleDoubaoConnection(clientWs) {
   let lastAsr = ""; // 451 是覆盖式，去重只在变化时上报
   let sessionConfig = null; // 来自浏览器 start 的 config
   let connectionStarted = false;
+  let modelSpeaking = false; // 模型当前是否在回复（用于打断判定）
+  let interruptedThisTurn = false; // 本轮是否已上报过打断，避免重复
 
   // 拿到 ConnectionStarted 且拿到浏览器 config 后，才发 StartSession
   function maybeStartSession() {
@@ -90,19 +92,34 @@ export function handleDoubaoConnection(clientWs) {
         sendJson(clientWs, { type: "error", message: "豆包会话失败: " + safeText(f.payload) });
         break;
 
+      case Event.ASRInfo:
       case Event.ASRResponse: {
-        // 用户识别文字（覆盖式）：只在文本变化时上报最新全量
         const j = parseJson(f.payload);
+        // 打断判定：服务端明确标记 is_duplex_interrupted，或模型正在说话时用户又开口
+        const duplexInterrupted = j?.is_duplex_interrupted === true;
         const text = j?.results?.[0]?.text ?? j?.text;
-        if (text && text !== lastAsr) {
+        if ((duplexInterrupted || (modelSpeaking && text)) && !interruptedThisTurn) {
+          interruptedThisTurn = true;
+          modelSpeaking = false;
+          sendJson(clientWs, { type: "interrupted" }); // 前端据此立即清空已缓冲音频
+        }
+        // 用户识别文字（覆盖式）：只在文本变化时上报最新全量
+        if (f.event === Event.ASRResponse && text && text !== lastAsr) {
           lastAsr = text;
           sendJson(clientWs, { type: "text", role: "user", text, mode: "replace" });
         }
         break;
       }
 
+      case Event.TTSSentenceStart:
+        // 模型开始说一句：进入“说话中”，允许下一次用户开口触发打断
+        modelSpeaking = true;
+        interruptedThisTurn = false;
+        break;
+
       case Event.ChatResponse: {
         // 助手回复文字（增量追加）
+        modelSpeaking = true;
         const j = parseJson(f.payload);
         if (j?.content) sendJson(clientWs, { type: "text", role: "assistant", text: j.content, mode: "append" });
         break;
@@ -110,12 +127,19 @@ export function handleDoubaoConnection(clientWs) {
 
       case Event.TTSResponse:
         // 回复音频（24k PCM）
+        modelSpeaking = true;
         if (f.payload && f.payload.length > 0 && clientWs.readyState === clientWs.OPEN) {
           clientWs.send(f.payload);
         }
         break;
 
+      case Event.TTSEnded:
+        modelSpeaking = false;
+        break;
+
       case Event.ChatEnded:
+        modelSpeaking = false;
+        interruptedThisTurn = false;
         lastAsr = ""; // 下一轮重新累积
         sendJson(clientWs, { type: "turn_end" });
         break;
