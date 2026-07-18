@@ -82,12 +82,22 @@ export function handleGeminiConnection(clientWs) {
 
   function startUpstream(config) {
     const model = config.model || defaultModel;
+    const isNativeAudio = model.includes("native-audio");
+    const isGemini3 = /gemini-3/.test(model);
+    let turnAudioBytes = 0; // 本轮累计音频字节，用于检测“空音频（没声音）”
+
     const generationConfig = { responseModalities: ["AUDIO"] };
     if (config.temperature != null) generationConfig.temperature = Number(config.temperature);
-    if (config.voice) {
-      generationConfig.speechConfig = {
-        voiceConfig: { prebuiltVoiceConfig: { voiceName: config.voice } },
-      };
+
+    // speechConfig：音色 + 语言。native-audio 模型自动选语言，不接受 languageCode。
+    const speechConfig = {};
+    if (config.voice) speechConfig.voiceConfig = { prebuiltVoiceConfig: { voiceName: config.voice } };
+    if (config.language && !isNativeAudio) speechConfig.languageCode = config.language;
+    if (Object.keys(speechConfig).length) generationConfig.speechConfig = speechConfig;
+
+    // 思考深度：thinkingLevel 是 Gemini 3.x 的参数，只对 3.x 模型下发，避免 2.5 报错
+    if (config.thinkingLevel && isGemini3) {
+      generationConfig.thinkingConfig = { thinkingLevel: config.thinkingLevel };
     }
 
     const setup = {
@@ -139,10 +149,21 @@ export function handleGeminiConnection(clientWs) {
         for (const p of sc.modelTurn?.parts || []) {
           if (p.inlineData?.data) {
             const buf = Buffer.from(p.inlineData.data, "base64");
+            turnAudioBytes += buf.length;
             if (clientWs.readyState === clientWs.OPEN) clientWs.send(buf);
           }
         }
-        if (sc.turnComplete) sendJson(clientWs, { type: "turn_end" });
+        if (sc.turnComplete) {
+          // fail-fast：一轮结束却没有任何音频，通常是该音色在当前模型下不出声
+          if (turnAudioBytes === 0) {
+            sendJson(clientWs, {
+              type: "error",
+              message: `当前音色「${config.voice || "默认"}」在模型「${model.replace("models/", "")}」下没有语音输出，请在设置里换一个音色或模型。`,
+            });
+          }
+          turnAudioBytes = 0;
+          sendJson(clientWs, { type: "turn_end" });
+        }
       }
     });
 

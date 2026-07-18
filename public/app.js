@@ -20,6 +20,8 @@ const settings = {
   temperature: 0.7,
   vad: "",
   camera: false,
+  thinkingLevel: "", // Gemini 思考深度 minimal/low/medium/high，空=模型默认
+  language: "", // Gemini 输出语言 BCP-47，空=自动
 };
 function loadSettings() {
   try { Object.assign(settings, JSON.parse(localStorage.getItem("voice_settings") || "{}")); } catch (_) {}
@@ -50,6 +52,8 @@ const tempInput = document.getElementById("temperature");
 const tempVal = document.getElementById("tempVal");
 const vadSel = document.getElementById("vad");
 const cameraToggle = document.getElementById("camera");
+const thinkingLevelSel = document.getElementById("thinkingLevel");
+const languageSel = document.getElementById("language");
 
 // ---------- 状态 ----------
 let client = null;
@@ -211,6 +215,8 @@ function buildConfig() {
     temperature: settings.temperature,
     vad: settings.vad,
     camera: settings.camera,
+    thinkingLevel: settings.thinkingLevel,
+    language: settings.language,
   };
 }
 
@@ -278,6 +284,8 @@ function fillPanel() {
   tempVal.textContent = Number(settings.temperature).toFixed(1);
   vadSel.value = settings.vad || "";
   cameraToggle.checked = !!settings.camera;
+  thinkingLevelSel.value = settings.thinkingLevel || "";
+  languageSel.value = settings.language || "";
 }
 function readPanel() {
   settings.systemPrompt = promptInput.value.trim() || DEFAULT_PROMPT;
@@ -287,6 +295,8 @@ function readPanel() {
   settings.temperature = Number(tempInput.value);
   settings.vad = vadSel.value;
   settings.camera = cameraToggle.checked;
+  settings.thinkingLevel = thinkingLevelSel.value;
+  settings.language = languageSel.value;
 }
 function openSettings() { fillPanel(); settingsOverlay.classList.remove("hidden"); }
 function closeSettings() { settingsOverlay.classList.add("hidden"); }
