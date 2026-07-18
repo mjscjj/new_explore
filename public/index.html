@@ -67,11 +67,25 @@
               placeholder="描述机器人的性格、说话风格、任务…"></textarea>
           </label>
 
+          <!-- 以下为豆包专属设置 -->
+          <div class="doubao-only">
+            <label class="field">
+              <span class="field-label">音色 <span class="tag-doubao">豆包</span></span>
+              <select id="doubaoVoice">
+                <option value="">默认（vv · 活泼女声）</option>
+                <option value="zh_female_vv_jupiter_bigtts">vv · 活泼灵动女声</option>
+                <option value="zh_female_xiaohe_jupiter_bigtts">xiaohe · 甜美女声（台湾腔）</option>
+                <option value="zh_male_yunzhou_jupiter_bigtts">yunzhou · 清爽沉稳男声</option>
+                <option value="zh_male_xiaotian_jupiter_bigtts">xiaotian · 清爽磁性男声</option>
+              </select>
+            </label>
+          </div>
+
           <!-- 以下为 Gemini 专属设置 -->
           <div class="gemini-only">
             <label class="field">
               <span class="field-label">音色 <span class="tag-gemini">Gemini</span></span>
-              <select id="voice">
+              <select id="geminiVoice">
                 <option value="">默认</option>
                 <option value="Kore">Kore（沉稳中性）</option>
                 <option value="Puck">Puck（活泼）</option>
@@ -116,7 +130,7 @@
             </label>
           </div>
 
-          <p class="note">修改后需重新点「开始通话」才生效。设置保存在浏览器本地。摄像头首次使用会请求授权。豆包音色/模型固定，暂不可调。</p>
+          <p class="note">修改后需重新点「开始通话」才生效。设置保存在浏览器本地。摄像头首次使用会请求授权。人设两家通用，音色各自独立；模型/温度/打断/摄像头为 Gemini 专属。</p>
         </div>
 
         <div class="panel-foot">

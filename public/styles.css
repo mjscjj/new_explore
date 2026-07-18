@@ -260,7 +260,8 @@ html, body {
   padding: 18px 20px; overflow-y: auto;
   display: flex; flex-direction: column; gap: 16px;
 }
-.gemini-only { display: flex; flex-direction: column; gap: 16px; }
+.gemini-only, .doubao-only { display: flex; flex-direction: column; gap: 16px; }
+.prov-hidden { display: none !important; }
 
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field-label {
@@ -269,11 +270,12 @@ html, body {
 }
 .field-label b { color: var(--accent); font-weight: 600; }
 
-.tag-gemini, .tag-both {
+.tag-gemini, .tag-both, .tag-doubao {
   font-size: 10px; padding: 1px 6px; border-radius: 6px; font-weight: 500;
 }
 .tag-gemini { background: rgba(91,140,255,0.18); color: #a9c0ff; }
 .tag-both { background: rgba(56,211,159,0.15); color: #7fe6c4; }
+.tag-doubao { background: rgba(255,138,76,0.16); color: #ffb083; }
 
 .field input[type="password"],
 .field input[type="text"],
