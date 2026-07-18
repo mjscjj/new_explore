@@ -21,6 +21,7 @@ export class GeminiClient {
           case "ready": this.h.onReady?.(); break;
           case "text": this.h.onText?.(m.role, m.text, m.mode); break;
           case "tool_call": this.h.onToolCall?.(m.id, m.name); break;
+          case "tool_activity": this.h.onToolActivity?.(m); break;
           case "interrupted": this.h.onInterrupted?.(); break;
           case "turn_end": this.h.onTurnEnd?.(); break;
           case "error": this.h.onError?.(m.message); break;

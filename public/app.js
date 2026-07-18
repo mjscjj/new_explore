@@ -135,6 +135,65 @@ function onText(role, text, mode) {
 }
 function endTurn() { curYou = null; curBot = null; }
 
+// 工具调用卡片：按 tool call id 复用同一张卡；start 建卡（运行中），done 填结果。
+// 默认折叠，点标题栏展开/收起。
+const toolCards = new Map();
+function onToolActivity(m) {
+  if (emptyHint) emptyHint.style.display = "none";
+  let card = toolCards.get(m.id);
+  if (!card) {
+    const div = document.createElement("div");
+    div.className = "line tool";
+    div.innerHTML = `
+      <div class="tool-card" data-open="0">
+        <button class="tool-head" type="button">
+          <span class="tool-caret">▶</span>
+          <span class="tool-title"></span>
+          <span class="tool-state"></span>
+        </button>
+        <div class="tool-body">
+          <div class="tool-section"><div class="tool-label">入参</div><pre class="tool-args"></pre></div>
+          <div class="tool-section tool-result-wrap"><div class="tool-label">结果</div><pre class="tool-result"></pre></div>
+        </div>
+      </div>`;
+    logEl.appendChild(div);
+    const cardEl = div.querySelector(".tool-card");
+    const head = div.querySelector(".tool-head");
+    head.addEventListener("click", () => {
+      const open = cardEl.dataset.open === "1" ? "0" : "1";
+      cardEl.dataset.open = open;
+      div.querySelector(".tool-caret").textContent = open === "1" ? "▼" : "▶";
+    });
+    card = {
+      el: cardEl,
+      title: div.querySelector(".tool-title"),
+      state: div.querySelector(".tool-state"),
+      args: div.querySelector(".tool-args"),
+      result: div.querySelector(".tool-result"),
+      resultWrap: div.querySelector(".tool-result-wrap"),
+    };
+    toolCards.set(m.id, card);
+  }
+
+  card.title.textContent = `🛠 ${m.name}`;
+  card.args.textContent = safeJson(m.args);
+  if (m.phase === "start") {
+    card.state.textContent = "运行中…";
+    card.state.className = "tool-state running";
+    card.resultWrap.style.display = "none";
+  } else {
+    const ok = m.result?.success !== false && !m.result?.error;
+    card.state.textContent = ok ? "完成" : "失败";
+    card.state.className = "tool-state " + (ok ? "ok" : "err");
+    card.result.textContent = safeJson(m.result);
+    card.resultWrap.style.display = "";
+  }
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function safeJson(v) {
+  try { return JSON.stringify(v, null, 2); } catch { return String(v); }
+}
+
 function showError(msg) {
   if (emptyHint) emptyHint.style.display = "none";
   const b = document.createElement("div");
@@ -276,6 +335,7 @@ function connect() {
     onText,
     onAudio: (buf) => { if (player) player.enqueue(buf); },
     onToolCall: (id, name) => handleToolCall(id, name),
+    onToolActivity: (m) => onToolActivity(m),
     onInterrupted: () => { if (player) player.clear(); curBot = null; setStatus("正在聆听…", "listening"); setOrb("listening"); },
     onTurnEnd: () => { endTurn(); setStatus("正在聆听…", "listening"); setOrb("listening"); },
     onError: (m) => showError(m),
@@ -298,6 +358,7 @@ async function disconnect() {
   if (player) { await player.close(); player = null; }
   stopCamera();
   endTurn();
+  toolCards.clear();
 }
 
 connectBtn.addEventListener("click", () => (connected ? disconnect() : connect()));

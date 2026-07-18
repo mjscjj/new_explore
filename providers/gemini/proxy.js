@@ -143,24 +143,54 @@ export function handleGeminiConnection(clientWs) {
     }
   }
 
-  // 后端自执行工具：本进程跑完（如 codex），把结果通过 sendToolResponse 回灌给模型。
-  async function runBackendTool(call, fn) {
-    // 给前端一个轻量提示，让 UI 能显示“正在执行本地工具”
-    sendJson(clientWs, { type: "text", role: "assistant", text: `[调用 ${call.name}…]`, mode: "append" });
-    let response;
-    try {
-      response = await fn(call.args || {});
-    } catch (e) {
-      response = { success: false, error: `工具执行异常: ${e?.message || e}` };
+  // 后端自执行工具（异步）：不阻塞语音链路。
+  // 1) 立即回一个“已在后台开跑”的 toolResponse，让模型这一轮马上继续（不卡）。
+  // 2) codex 在后台真正跑（允许多个并行），跑完把【入参 + 输出 + 背景】作为新一轮 user
+  //    内容通过 sendClientContent 推给模型，模型主动播报结果，上下文连贯。
+  // 3) 前后两阶段都用 tool_activity 事件透传给前端，用于折叠卡片展示。
+  function runBackendTool(call, fn) {
+    const args = call.args || {};
+
+    // 前端：工具开始（带入参），用于渲染折叠卡片
+    sendJson(clientWs, { type: "tool_activity", phase: "start", id: call.id, name: call.name, args });
+
+    // 立即告诉模型“已在后台执行”，解除这一轮的等待
+    if (session) {
+      try {
+        session.sendToolResponse({
+          functionResponses: [
+            {
+              id: call.id,
+              name: call.name,
+              response: { status: "running", note: "任务已在后台开始执行，完成后会把结果告诉你。" },
+            },
+          ],
+        });
+      } catch (e) {
+        sendJson(clientWs, { type: "error", message: "回填工具结果失败: " + (e?.message || e) });
+      }
     }
-    if (!session) return; // 会话可能已在执行期间关闭
-    try {
-      session.sendToolResponse({
-        functionResponses: [{ id: call.id, name: call.name, response }],
+
+    // 后台真正执行，不 await（允许并行）
+    Promise.resolve()
+      .then(() => fn(args))
+      .catch((e) => ({ success: false, error: `工具执行异常: ${e?.message || e}` }))
+      .then((result) => {
+        // 前端：工具完成（带结果）
+        sendJson(clientWs, { type: "tool_activity", phase: "done", id: call.id, name: call.name, args, result });
+
+        if (!session) return; // 会话可能已在执行期间关闭
+        // 把入参 + 输出 + 背景合并成一段 user 内容，推给模型，让它主动、连贯地播报
+        const brief = summarizeToolResult(call.name, args, result);
+        try {
+          session.sendClientContent({
+            turns: [{ role: "user", parts: [{ text: brief }] }],
+            turnComplete: true,
+          });
+        } catch (e) {
+          sendJson(clientWs, { type: "error", message: "推送工具结果失败: " + (e?.message || e) });
+        }
       });
-    } catch (e) {
-      sendJson(clientWs, { type: "error", message: "回填工具结果失败: " + (e?.message || e) });
-    }
   }
 
   function handleServerMessage(msg) {
@@ -223,4 +253,17 @@ export function handleGeminiConnection(clientWs) {
 
 function sendJson(ws, obj) {
   if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(obj));
+}
+
+// 把工具的【入参 + 输出 + 背景】拼成一段给模型的连贯提示，让它主动播报结果。
+function summarizeToolResult(name, args, result) {
+  const argStr = JSON.stringify(args ?? {});
+  const resStr = JSON.stringify(result ?? {});
+  return (
+    `[后台工具「${name}」已执行完毕]\n` +
+    `刚才你请求执行的这个任务已经在后台跑完了，下面是完整信息，请用自然口语把结果讲给用户听：\n` +
+    `- 调用入参：${argStr}\n` +
+    `- 执行结果：${resStr}\n` +
+    `如果成功，简要说明它做了什么、关键结论；如果失败，说明失败原因。`
+  );
 }

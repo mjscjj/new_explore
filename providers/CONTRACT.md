@@ -53,6 +53,7 @@
 | 打断 | JSON `{ "type": "interrupted" }` | 用户打断，前端应停止当前播放 |
 | 一轮结束 | JSON `{ "type": "turn_end" }` | 助手本轮说完 |
 | 工具调用 | JSON `{ "type": "tool_call", "id": "...", "name": "capture_camera" }` | 模型自主发起的**前端执行**工具，前端执行后用 `tool_result`(+`image`) 回应 |
+| 工具活动 | JSON `{ "type": "tool_activity", "phase": "start"\|"done", "id": "...", "name": "...", "args": {...}, "result": {...} }` | **后端自执行工具**（如 `run_codex`）的执行过程透传，仅供前端做折叠卡片展示；`start` 带入参，`done` 带入参+结果 |
 | 错误 | JSON `{ "type": "error", "message": "..." }` | fail-fast：直接透传，不静默降级 |
 
 ## 工具分两类
@@ -63,12 +64,16 @@
    `toolCall` 后**直接执行**，把结果通过上游 SDK 的 `sendToolResponse` 回灌，**不经过前端往返**。
    实现集中在 `providers/tools/*.js`，proxy 用一张 `BACKEND_TOOLS` 表区分。
 
-### run_codex（后端自执行）
+### run_codex（后端自执行 · 异步）
 
-- 入参：`prompt`（任务，必填）、`working_dir`（绝对路径工作目录，必填）。
+- 入参：`prompt`（任务，必填）、`working_dir`（可选，默认本项目目录，支持 `~`）。
 - 返回：`{ working_dir, exit_code, success, summary, duration_ms, error }`（工作目录回显）。
 - 固定策略（写死、不暴露给模型）：`--dangerously-bypass-approvals-and-sandbox`（full-access）、
   模型 `gpt-5.6-luna` + `model_reasoning_effort=medium`、`--skip-git-repo-check`、超时 300s。
+- **异步执行**（不阻塞语音）：模型发起后，后端**立即**回一个 `{status:"running"}` 的 toolResponse
+  解除本轮等待；codex 在后台真正执行（**允许多任务并行**）。跑完后，后端把【入参+输出+背景】
+  合成一段 user 内容用 `sendClientContent` 推给模型，模型再主动播报结果，保证上下文连贯。
+- 全过程通过 `tool_activity`（start/done）透传给前端做折叠卡片。
 
 ## 约定
 

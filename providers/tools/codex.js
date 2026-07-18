@@ -33,7 +33,7 @@ function resolveDir(dir) {
 export const RUN_CODEX_DECLARATION = {
   name: "run_codex",
   description:
-    "在本机调用 Codex 编码助手，在指定工作目录里执行一个编码或分析任务（可读写代码、运行命令、修改文件），并返回它完成后的总结。当用户要求写代码、改代码、跑脚本、排查项目问题、分析某个目录下的代码时调用。",
+    "强大全能的agent助手。在本机调用 Codex 编码助手，在指定工作目录里执行一个编码或分析任务（可读写代码、运行命令、修改文件），并返回它完成后的总结。当用户要求写代码、改代码、跑脚本、排查项目问题、分析某个目录下的代码时调用。",
   parameters: {
     type: "object",
     properties: {
