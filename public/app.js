@@ -68,7 +68,18 @@ function setStatus(text, cls = "") {
   statusEl.textContent = text;
   statusEl.className = "status" + (cls ? " " + cls : "");
 }
-function setOrb(state) { orbEl.className = "orb" + (state ? " " + state : ""); }
+// 状态 → 卡通形象表情
+const EXPR_MAP = {
+  "": "idle",
+  connecting: "thinking",
+  listening: "listening",
+  speaking: "speaking",
+  thinking: "camera", // 截图/看摄像头时用"看"的表情
+};
+function setOrb(state) {
+  orbEl.className = "orb character" + (state ? " " + state : "");
+  orbEl.dataset.expr = EXPR_MAP[state] ?? "idle";
+}
 function setDot(cls) { statusDot.className = "dot" + (cls ? " " + cls : ""); }
 
 function logLine(role, text) {

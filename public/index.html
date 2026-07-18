@@ -31,7 +31,13 @@
       </header>
 
       <main class="stage">
-        <div id="orb" class="orb"></div>
+        <div id="orb" class="orb character" data-expr="idle">
+          <img class="expr expr-idle" src="assets/character/girl-listening.png" alt="待机" />
+          <img class="expr expr-listening" src="assets/character/girl-listening.png" alt="聆听" />
+          <img class="expr expr-speaking" src="assets/character/girl-speaking.png" alt="说话" />
+          <img class="expr expr-thinking" src="assets/character/girl-thinking.png" alt="思考" />
+          <img class="expr expr-camera" src="assets/character/girl-camera.png" alt="看" />
+        </div>
         <div id="status" class="status">未连接</div>
         <button id="connectBtn" class="connect-btn">开始通话</button>
       </main>
