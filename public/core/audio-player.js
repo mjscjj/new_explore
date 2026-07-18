@@ -5,16 +5,16 @@
 // 采样率 srcRate=24000」创建，由 Web Audio 自动重采样到硬件率。这样即使浏览器
 // 不接受 24000 的 context（会静默回退到 48000），也不会出现 2 倍速的“滋滋滋”噪音。
 export class AudioPlayer {
-  constructor(srcRate = 24000) {
+  // jitterBufferSec: 首块起播前先垫多长缓冲（吸收网络抖动）。国内豆包网络稳，用小值；
+  //   跨境 Gemini 抖动大，用大值。由 app.js 按 provider 传入。
+  constructor(srcRate = 24000, { jitterBufferSec = 0.08 } = {}) {
     this.srcRate = srcRate; // 上游 PCM 的真实采样率（用于给 AudioBuffer 打标签）
     this.ctx = null;
     this.nextTime = 0;
     this.sources = new Set();
     this.onStateChange = null; // (playing:boolean) => void
     this._playing = false;
-    // 抖动缓冲：首块到达后先垫一段再排播，用来吸收跨境网络抖动，避免块晚到时断续。
-    // 代价是首字多等 ~jitterBufferSec。听感断续时调大，觉得延迟高时调小。
-    this.jitterBufferSec = 0.15;
+    this.jitterBufferSec = jitterBufferSec;
     this._underruns = 0; // 统计：排播时发现已“饿死”（nextTime 落后于当前时间）的次数
   }
 
@@ -54,11 +54,12 @@ export class AudioPlayer {
     src.connect(this.ctx.destination);
 
     const now = this.ctx.currentTime;
-    // nextTime 落后于当前时间 = 缓冲被耗尽（块晚到，饿死）。
-    // 此时不立即硬接（会断续），而是重新垫回抖动缓冲，给后续块留出赶上的余量。
+    // 缓冲被耗尽（块晚到）时：不再整体重垫一大段抖动缓冲（那会把后续所有音频往后推、
+    // 造成可听停顿——这是之前豆包“接收卡”的主因）。改为从当前时间温和续上，只补一个
+    // 极小的调度余量，尽量无缝衔接。
     if (this.nextTime < now) {
       this._underruns++;
-      this.nextTime = now + this.jitterBufferSec;
+      this.nextTime = now + 0.02; // 20ms 调度保护，避免 start 时间已过
     }
     src.start(this.nextTime);
     this.nextTime += buffer.duration;

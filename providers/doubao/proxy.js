@@ -9,21 +9,32 @@ const RESOURCE_ID = "volc.speech.dialog";
 const APP_KEY = "PlgvMymc7f3tQnJ6"; // 对话服务固定 app key
 
 const DEFAULT_SYSTEM_ROLE = "你是一个友好的中文语音助手，回答自然、简洁、口语化。";
+const DEFAULT_BOT_NAME = "小助手";
+const DEFAULT_STYLE = "自然亲切、有活力";
 
 function buildSessionConfig(config = {}) {
   // 关键：format 必须是 "pcm_s16le"（16-bit 有符号小端），与前端 Int16Array 播放一致。
   // 若用 "pcm" 豆包会返回 float32@48k，被当成 int16 播放就是“滋滋滋”噪音。
-  const tts = { audio_config: { channel: 1, format: "pcm_s16le", sample_rate: 24000 } };
+  const audioConfig = { channel: 1, format: "pcm_s16le", sample_rate: 24000 };
+  // 语速/音量：-50~100，0=默认；仅 2.0 版本模型生效。非 0 才下发。
+  if (config.doubaoSpeechRate) audioConfig.speech_rate = Number(config.doubaoSpeechRate);
+  if (config.doubaoLoudness) audioConfig.loudness_rate = Number(config.doubaoLoudness);
+
+  const tts = { audio_config: audioConfig };
   // 豆包音色：speaker 必须放在 tts 顶层（不是 audio_config 里），否则不生效
   if (config.voice) tts.speaker = config.voice;
-  return {
-    dialog: {
-      bot_name: "小助手",
-      system_role: config.systemPrompt || DEFAULT_SYSTEM_ROLE,
-      speaking_style: "自然亲切、有活力",
-    },
-    tts,
+
+  const dialog = {
+    bot_name: config.doubaoBotName || DEFAULT_BOT_NAME,
+    system_role: config.systemPrompt || DEFAULT_SYSTEM_ROLE,
+    speaking_style: config.doubaoStyle || DEFAULT_STYLE,
+    // 麦克风常开会有静音段；keep_alive 让服务端自动补静音，避免 52000042 静音超时断链。
+    extra: { input_mod: "keep_alive" },
   };
+  // 唱歌能力 enable_music：放在 dialog.extra，仅 O2.0(1.2.1.1) 生效。开启才下发。
+  if (config.doubaoSing) dialog.extra.enable_music = true;
+
+  return { dialog, tts };
 }
 
 export function handleDoubaoConnection(clientWs) {

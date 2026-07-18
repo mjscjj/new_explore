@@ -15,7 +15,7 @@
 本项目后端 (server.js)
   └─ providers/<name>/proxy.js  一个 provider 一个目录，互不引用
         └─ 对上：与浏览器走【统一线路协议】
-        └─ 对下：各自对接真实上游（豆包二进制 WS / Gemini JSON WS）
+        └─ 对下：各自对接真实上游（豆包二进制 WS / Gemini 用官方 @google/genai SDK 的 Live API）
 ```
 
 ## 浏览器 ⇄ 本项目后端 的统一线路协议
@@ -52,8 +52,23 @@
 | 音频 | 二进制 ArrayBuffer | 24kHz / 16-bit / 单声道 / little-endian PCM，回复语音 |
 | 打断 | JSON `{ "type": "interrupted" }` | 用户打断，前端应停止当前播放 |
 | 一轮结束 | JSON `{ "type": "turn_end" }` | 助手本轮说完 |
-| 工具调用 | JSON `{ "type": "tool_call", "id": "...", "name": "capture_camera" }` | 模型自主发起的工具调用，前端执行后用 `tool_result`(+`image`) 回应 |
+| 工具调用 | JSON `{ "type": "tool_call", "id": "...", "name": "capture_camera" }` | 模型自主发起的**前端执行**工具，前端执行后用 `tool_result`(+`image`) 回应 |
 | 错误 | JSON `{ "type": "error", "message": "..." }` | fail-fast：直接透传，不静默降级 |
+
+## 工具分两类
+
+1. **前端执行工具**：需要浏览器能力（如 `capture_camera` 用摄像头）。后端把 `tool_call`
+   转发给前端，前端执行后用 `tool_result`（可带 `image`）回应，后端再回灌给上游模型。
+2. **后端自执行工具**：只能在本机后端跑（如 `run_codex` 调用本机 Codex CLI）。后端截获
+   `toolCall` 后**直接执行**，把结果通过上游 SDK 的 `sendToolResponse` 回灌，**不经过前端往返**。
+   实现集中在 `providers/tools/*.js`，proxy 用一张 `BACKEND_TOOLS` 表区分。
+
+### run_codex（后端自执行）
+
+- 入参：`prompt`（任务，必填）、`working_dir`（绝对路径工作目录，必填）。
+- 返回：`{ working_dir, exit_code, success, summary, duration_ms, error }`（工作目录回显）。
+- 固定策略（写死、不暴露给模型）：`--dangerously-bypass-approvals-and-sandbox`（full-access）、
+  模型 `gpt-5.6-luna` + `model_reasoning_effort=medium`、`--skip-git-repo-check`、超时 300s。
 
 ## 约定
 

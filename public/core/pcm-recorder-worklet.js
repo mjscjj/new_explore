@@ -6,7 +6,8 @@ class PCMRecorderProcessor extends AudioWorkletProcessor {
     this.targetRate = 16000;
     this.inputRate = sampleRate; // 硬件采样率（全局）
     this._buffer = [];
-    this._chunkSamples = Math.round(this.targetRate * 0.1); // ~100ms 一包
+    // 官方强烈推荐 20ms 一包：更快让服务端判断说话起止，改善首字响应与打断灵敏度。
+    this._chunkSamples = Math.round(this.targetRate * 0.02); // 20ms 一包（16k → 320 采样）
   }
 
   _downsample(input) {

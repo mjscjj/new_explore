@@ -79,6 +79,48 @@
                 <option value="zh_male_xiaotian_jupiter_bigtts">xiaotian · 清爽磁性男声</option>
               </select>
             </label>
+
+            <label class="field">
+              <span class="field-label">
+                说话风格 <span class="tag-doubao">豆包</span>
+                <span class="field-hint">如「口吻拽拽的」「温柔耐心」「像林黛玉」</span>
+              </span>
+              <input id="doubaoStyle" type="text" autocomplete="off"
+                placeholder="留空用默认：自然亲切、有活力" />
+            </label>
+
+            <label class="field">
+              <span class="field-label">
+                机器人名字 <span class="tag-doubao">豆包</span>
+                <span class="field-hint">最多 20 字</span>
+              </span>
+              <input id="doubaoBotName" type="text" autocomplete="off" maxlength="20"
+                placeholder="留空用默认：小助手" />
+            </label>
+
+            <label class="field">
+              <span class="field-label">
+                语速 <span class="tag-doubao">豆包</span>
+                <b id="doubaoRateVal">0</b>
+              </span>
+              <input id="doubaoSpeechRate" type="range" min="-50" max="100" step="5" value="0" />
+            </label>
+
+            <label class="field">
+              <span class="field-label">
+                音量 <span class="tag-doubao">豆包</span>
+                <b id="doubaoLoudnessVal">0</b>
+              </span>
+              <input id="doubaoLoudness" type="range" min="-50" max="100" step="5" value="0" />
+            </label>
+
+            <label class="field field-row">
+              <span class="field-label">
+                唱歌能力 <span class="tag-doubao">豆包</span>
+                <span class="field-hint">开启后可以让它唱歌（会检索曲库增强）</span>
+              </span>
+              <input id="doubaoSing" type="checkbox" class="switch" />
+            </label>
           </div>
 
           <!-- 以下为 Gemini 专属设置 -->
@@ -127,7 +169,7 @@
             <label class="field">
               <span class="field-label">
                 语言 <span class="tag-gemini">Gemini</span>
-                <span class="field-hint">锁定输出语言；native-audio 模型会自动切换、此项不生效</span>
+                <span class="field-hint">锁定输出语言；留空则模型按你说的话自动判断</span>
               </span>
               <select id="language">
                 <option value="">自动（推荐）</option>
@@ -144,19 +186,18 @@
             <label class="field">
               <span class="field-label">
                 模型 <span class="tag-gemini">Gemini</span>
-                <span class="field-hint">想更像真人、有情绪 → 选 native-audio；想低延迟不卡 → 选 3.1</span>
+                <span class="field-hint">3.1-flash-live：低延迟实时对话，原生音频输出（官方推荐）</span>
               </span>
               <select id="model">
-                <option value="models/gemini-3.1-flash-live-preview">gemini-3.1-flash-live（低延迟，音质偏机械）</option>
-                <option value="models/gemini-2.5-flash-native-audio-latest">gemini-2.5-flash-native-audio（拟人、有情感，稍慢）</option>
+                <option value="models/gemini-3.1-flash-live-preview">gemini-3.1-flash-live（实时对话，官方推荐）</option>
                 <option value="models/gemini-3.5-live-translate-preview">gemini-3.5-live-translate（实时翻译）</option>
               </select>
             </label>
 
             <label class="field">
               <span class="field-label">
-                思考深度 <span class="tag-gemini">Gemini</span>
-                <span class="field-hint">越高回答越周全但越慢；实时对话建议 minimal/low（仅 3.x 模型生效）</span>
+                思考深度（thinkingLevel）<span class="tag-gemini">Gemini</span>
+                <span class="field-hint">越高回答越周全但越慢；实时对话建议 minimal/low，默认 minimal</span>
               </span>
               <select id="thinkingLevel">
                 <option value="">默认（minimal，最快）</option>

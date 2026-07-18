@@ -4,9 +4,10 @@ import { GeminiClient } from "./providers/gemini-client.js";
 import { DoubaoClient } from "./providers/doubao-client.js";
 
 // provider 注册表：新增 provider 只需在这里加一行 + 一个 client 文件。
+// jitter：播放器起播缓冲秒数。豆包国内网络稳，用小值降延迟；Gemini 跨境抖动大，用大值防断续。
 const PROVIDERS = {
-  doubao: { label: "豆包", ctor: DoubaoClient, sub: "豆包端到端实时语音 · 超拟人中文" },
-  gemini: { label: "Gemini", ctor: GeminiClient, sub: "Gemini Live · 端到端多模态、可看摄像头" },
+  doubao: { label: "豆包", ctor: DoubaoClient, sub: "豆包端到端实时语音 · 超拟人中文", jitter: 0.06 },
+  gemini: { label: "Gemini", ctor: GeminiClient, sub: "Gemini Live · 端到端多模态、可看摄像头", jitter: 0.15 },
 };
 
 // ---------- 设置 ----------
@@ -15,6 +16,11 @@ const settings = {
   provider: "doubao",
   systemPrompt: DEFAULT_PROMPT,
   doubaoVoice: "", // 豆包音色（speaker），空=默认 vv
+  doubaoStyle: "", // 豆包说话风格 speaking_style，空=默认
+  doubaoBotName: "", // 豆包机器人名字 bot_name，空=默认
+  doubaoSpeechRate: 0, // 豆包语速 -50~100，0=正常（仅 2.0 生效）
+  doubaoLoudness: 0, // 豆包音量 -50~100，0=正常（仅 2.0 生效）
+  doubaoSing: false, // 豆包唱歌能力 enable_music（仅 O2.0 生效）
   geminiVoice: "", // Gemini 音色，空=默认
   model: "models/gemini-3.1-flash-live-preview",
   temperature: 0.7,
@@ -23,8 +29,17 @@ const settings = {
   thinkingLevel: "", // Gemini 思考深度 minimal/low/medium/high，空=模型默认
   language: "", // Gemini 输出语言 BCP-47，空=自动
 };
+// 当前仍支持的 Gemini 模型（下拉里有的），用于把已下线/被移除的旧值迁移回默认。
+const SUPPORTED_GEMINI_MODELS = [
+  "models/gemini-3.1-flash-live-preview",
+  "models/gemini-3.5-live-translate-preview",
+];
 function loadSettings() {
   try { Object.assign(settings, JSON.parse(localStorage.getItem("voice_settings") || "{}")); } catch (_) {}
+  // 迁移：旧版本存过 gemini-2.5-flash-native-audio-* 等已移除的模型，回落到默认 3.1，避免下拉出现死选项。
+  if (!SUPPORTED_GEMINI_MODELS.includes(settings.model)) {
+    settings.model = "models/gemini-3.1-flash-live-preview";
+  }
 }
 function persistSettings() {
   localStorage.setItem("voice_settings", JSON.stringify(settings));
@@ -46,6 +61,13 @@ const closeSettingsBtn = document.getElementById("closeSettings");
 const saveSettingsBtn = document.getElementById("saveSettings");
 const promptInput = document.getElementById("systemPrompt");
 const doubaoVoiceSel = document.getElementById("doubaoVoice");
+const doubaoStyleInput = document.getElementById("doubaoStyle");
+const doubaoBotNameInput = document.getElementById("doubaoBotName");
+const doubaoRateInput = document.getElementById("doubaoSpeechRate");
+const doubaoRateVal = document.getElementById("doubaoRateVal");
+const doubaoLoudnessInput = document.getElementById("doubaoLoudness");
+const doubaoLoudnessVal = document.getElementById("doubaoLoudnessVal");
+const doubaoSingToggle = document.getElementById("doubaoSing");
 const geminiVoiceSel = document.getElementById("geminiVoice");
 const modelSel = document.getElementById("model");
 const tempInput = document.getElementById("temperature");
@@ -217,6 +239,12 @@ function buildConfig() {
     camera: settings.camera,
     thinkingLevel: settings.thinkingLevel,
     language: settings.language,
+    // 豆包专属（gemini proxy 会忽略）
+    doubaoStyle: settings.doubaoStyle,
+    doubaoBotName: settings.doubaoBotName,
+    doubaoSpeechRate: settings.doubaoSpeechRate,
+    doubaoLoudness: settings.doubaoLoudness,
+    doubaoSing: settings.doubaoSing,
   };
 }
 
@@ -227,7 +255,7 @@ function connect() {
   setDot("");
   connectBtn.disabled = true;
 
-  player = new AudioPlayer(24000);
+  player = new AudioPlayer(24000, { jitterBufferSec: conf.jitter ?? 0.08 });
   window.__player = player; // 调试：控制台可看 __player._underruns / 调 __player.jitterBufferSec
   player.onStateChange = (playing) => {
     if (connected) { setStatus(playing ? "对方说话中…" : "正在聆听…", playing ? "speaking" : "listening"); setOrb(playing ? "speaking" : "listening"); }
@@ -278,6 +306,13 @@ connectBtn.addEventListener("click", () => (connected ? disconnect() : connect()
 function fillPanel() {
   promptInput.value = settings.systemPrompt || "";
   doubaoVoiceSel.value = settings.doubaoVoice || "";
+  doubaoStyleInput.value = settings.doubaoStyle || "";
+  doubaoBotNameInput.value = settings.doubaoBotName || "";
+  doubaoRateInput.value = settings.doubaoSpeechRate ?? 0;
+  doubaoRateVal.textContent = settings.doubaoSpeechRate ?? 0;
+  doubaoLoudnessInput.value = settings.doubaoLoudness ?? 0;
+  doubaoLoudnessVal.textContent = settings.doubaoLoudness ?? 0;
+  doubaoSingToggle.checked = !!settings.doubaoSing;
   geminiVoiceSel.value = settings.geminiVoice || "";
   modelSel.value = settings.model;
   tempInput.value = settings.temperature;
@@ -290,6 +325,11 @@ function fillPanel() {
 function readPanel() {
   settings.systemPrompt = promptInput.value.trim() || DEFAULT_PROMPT;
   settings.doubaoVoice = doubaoVoiceSel.value;
+  settings.doubaoStyle = doubaoStyleInput.value.trim();
+  settings.doubaoBotName = doubaoBotNameInput.value.trim();
+  settings.doubaoSpeechRate = Number(doubaoRateInput.value);
+  settings.doubaoLoudness = Number(doubaoLoudnessInput.value);
+  settings.doubaoSing = doubaoSingToggle.checked;
   settings.geminiVoice = geminiVoiceSel.value;
   settings.model = modelSel.value;
   settings.temperature = Number(tempInput.value);
@@ -305,6 +345,8 @@ settingsBtn.addEventListener("click", openSettings);
 closeSettingsBtn.addEventListener("click", closeSettings);
 settingsOverlay.addEventListener("click", (e) => { if (e.target === settingsOverlay) closeSettings(); });
 tempInput.addEventListener("input", () => { tempVal.textContent = Number(tempInput.value).toFixed(1); });
+doubaoRateInput.addEventListener("input", () => { doubaoRateVal.textContent = doubaoRateInput.value; });
+doubaoLoudnessInput.addEventListener("input", () => { doubaoLoudnessVal.textContent = doubaoLoudnessInput.value; });
 saveSettingsBtn.addEventListener("click", () => {
   readPanel();
   persistSettings();
