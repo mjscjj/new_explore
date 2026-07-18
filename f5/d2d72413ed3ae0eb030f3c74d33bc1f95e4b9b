@@ -1,0 +1,39 @@
+package-lock.json
+  s_76af4a3c526bab::t_db390031113761 11,17-112,126-134,141-169,194-199,274-282,337-345,452-480,499-510,538-565,603-628,685-720,748-783,868-905,930-942,958-980,1034-1042,1223-1228,1256-1264
+package.json
+  s_76af4a3c526bab::t_0363dc62b305d4 12
+providers/CONTRACT.md
+  s_76af4a3c526bab::t_d091be1fe4e5c9 18,55,58-72
+providers/doubao/proxy.js
+  s_76af4a3c526bab::t_2c6d9042490895 12-13,18-23,26-32,34-37
+providers/gemini/proxy.js
+  s_76af4a3c526bab::t_a75f0d1c060e79 3-5,10-14,17-19,30-32,34-36,42-44,62,64-66,69-72,76,78-90,92,94,97-98,100-102,105-108,110,115-144,146-164,166-176,180-197,199,201-207,209-211,215-219
+providers/tools/codex.js
+  s_76af4a3c526bab::t_e9c41bd3e3fd41 1-150
+public/app.js
+  s_76af4a3c526bab::t_bafd9585cb8aac 7,9-10,19-23,32-36,39-42,64-70,242-247,258,309-315,328-332,348-349
+public/core/audio-player.js
+  s_76af4a3c526bab::t_8eec6ff965e161 8-10,17,57-59,62
+public/core/pcm-recorder-worklet.js
+  s_76af4a3c526bab::t_5aff0bbfe094cf 9-10
+public/index.html
+  s_76af4a3c526bab::t_de592a4b833e68 82-123,172,189,192,199-200
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "f5d2d72413ed3ae0eb030f3c74d33bc1f95e4b9b",
+  "prompts": {},
+  "sessions": {
+    "s_76af4a3c526bab": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "cebac5bb-5959-4dce-83cc-8269cd7a9024",
+        "model": "unknown"
+      },
+      "human_author": "chujiejie.1 <chujiejie.1@bytedance.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
