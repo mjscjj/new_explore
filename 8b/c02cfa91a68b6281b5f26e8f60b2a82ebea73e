@@ -1,0 +1,23 @@
+public/app.js
+  s_a6b00ef3f748c2::t_874092a271a6d1 219
+public/core/audio-player.js
+  s_a6b00ef3f748c2::t_c29a80b9980a46 15-18,25-26,57-62,83-84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "8bc02cfa91a68b6281b5f26e8f60b2a82ebea73e",
+  "prompts": {},
+  "sessions": {
+    "s_a6b00ef3f748c2": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "078fd253-2136-47f8-aa22-d565c78c7efe",
+        "model": "unknown"
+      },
+      "human_author": "chujiejie.1 <chujiejie.1@bytedance.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
