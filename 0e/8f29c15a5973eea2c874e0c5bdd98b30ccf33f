@@ -1,0 +1,21 @@
+.gitignore
+  s_e3b9ada98b809c::t_ddf5e9c5735509 2-3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.10",
+  "base_commit_sha": "0e8f29c15a5973eea2c874e0c5bdd98b30ccf33f",
+  "prompts": {},
+  "sessions": {
+    "s_e3b9ada98b809c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f788f-f893-7a92-bc1b-41378c509fa9",
+        "model": "unknown"
+      },
+      "human_author": "chujiejie.1 <chujiejie.1@bytedance.com>"
+    }
+  },
+  "attestation_metadata": {},
+  "remote_transcripts": {}
+}
