@@ -270,12 +270,14 @@ html, body {
 }
 .field-label b { color: var(--accent); font-weight: 600; }
 
-.tag-gemini, .tag-both, .tag-doubao {
+.tag-gemini, .tag-both, .tag-doubao, .tag-qwen, .tag-qwebo {
   font-size: 10px; padding: 1px 6px; border-radius: 6px; font-weight: 500;
 }
 .tag-gemini { background: rgba(91,140,255,0.18); color: #a9c0ff; }
 .tag-both { background: rgba(56,211,159,0.15); color: #7fe6c4; }
 .tag-doubao { background: rgba(255,138,76,0.16); color: #ffb083; }
+.tag-qwen { background: rgba(168,120,255,0.18); color: #cbb0ff; }
+.tag-qwebo { background: rgba(64,199,214,0.18); color: #86e3ee; }
 
 .field input[type="password"],
 .field input[type="text"],

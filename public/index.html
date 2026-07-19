@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>实时语音助手 · 豆包 / Gemini</title>
+    <title>实时语音助手 · 豆包 / Gemini / Qwen / QwebO</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -20,6 +20,8 @@
           <div class="provider-switch" id="providerSwitch">
             <button class="prov-btn active" data-provider="doubao">豆包</button>
             <button class="prov-btn" data-provider="gemini">Gemini</button>
+            <button class="prov-btn" data-provider="qwen">Qwen</button>
+            <button class="prov-btn" data-provider="qwebo">QwebO</button>
           </div>
           <button id="settingsBtn" class="icon-btn" title="设置" aria-label="设置">
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -232,6 +234,104 @@
               </span>
               <input id="camera" type="checkbox" class="switch" />
             </label>
+          </div>
+
+          <!-- 以下为 Qwen 专属设置 -->
+          <div class="qwen-only">
+            <label class="field">
+              <span class="field-label">音色 <span class="tag-qwen">Qwen</span></span>
+              <select id="qwenVoice">
+                <option value="">默认（longanqian · 龙安乔）</option>
+                <option value="longanqian">longanqian · 龙安乔</option>
+                <option value="longanlingxin">longanlingxin · 龙安灵芯</option>
+                <option value="longanlingxi">longanlingxi · 龙安灵曦</option>
+                <option value="longanxiaoxin">longanxiaoxin · 龙安小芯</option>
+                <option value="longanlufeng">longanlufeng · 龙安鹿风</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span class="field-label">
+                交互模式 <span class="tag-qwen">Qwen</span>
+                <span class="field-hint">smart_turn 会用语义判断轮次，「嗯」「啊」等附和声不打断对话</span>
+              </span>
+              <select id="qwenTurnMode">
+                <option value="">server_vad · 声学检测（默认）</option>
+                <option value="smart_turn">smart_turn · 智能语义轮次</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span class="field-label">打断/断句灵敏度 <span class="tag-qwen">Qwen</span></span>
+              <select id="qwenVad">
+                <option value="LOW">低（不易被打断，适合吵环境）</option>
+                <option value="" selected>中（默认）</option>
+                <option value="HIGH">高（更灵敏，说话即打断）</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span class="field-label">
+                历史轮数（max_history_turns）<span class="tag-qwen">Qwen</span>
+                <b id="qwenMaxHistoryVal">20</b>
+              </span>
+              <input id="qwenMaxHistory" type="range" min="1" max="50" step="1" value="20" />
+            </label>
+
+            <p class="note" style="margin:6px 0 0">Qwen-Audio 使用阿里云百炼 <b>qwen-audio-3.0-realtime-plus</b>，人设用上方通用「人设 / 系统提示」，模型由后端配置固定。已内置 <b>run_codex</b> 工具（可让它写代码/跑脚本/查项目）。该模型为纯音频，不支持摄像头视觉。</p>
+          </div>
+
+          <!-- 以下为 QwebO / Qwen-Omni 专属设置 -->
+          <div class="qwebo-only">
+            <label class="field">
+              <span class="field-label">音色 <span class="tag-qwebo">QwebO</span></span>
+              <select id="qweboVoice">
+                <option value="">默认（Tina · 温暖女声）</option>
+                <option value="Tina">Tina · 温暖甜美女声</option>
+                <option value="Cherry">Cherry · 阳光自然女声</option>
+                <option value="Serena">Serena · 温柔女声</option>
+                <option value="Chelsie">Chelsie · 二次元少女</option>
+                <option value="Ethan">Ethan · 明亮阳光男声（略带北方口音）</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span class="field-label">
+                交互模式 <span class="tag-qwebo">QwebO</span>
+                <span class="field-hint">smart_turn 会用语义判断轮次，「嗯」「啊」等附和声不打断对话</span>
+              </span>
+              <select id="qweboTurnMode">
+                <option value="">server_vad · 声学检测（默认）</option>
+                <option value="smart_turn">smart_turn · 智能语义轮次</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span class="field-label">打断/断句灵敏度 <span class="tag-qwebo">QwebO</span></span>
+              <select id="qweboVad">
+                <option value="LOW">低（不易被打断，适合吵环境）</option>
+                <option value="" selected>中（默认）</option>
+                <option value="HIGH">高（更灵敏，说话即打断）</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span class="field-label">
+                历史轮数（max_history_turns）<span class="tag-qwebo">QwebO</span>
+                <b id="qweboMaxHistoryVal">20</b>
+              </span>
+              <input id="qweboMaxHistory" type="range" min="1" max="50" step="1" value="20" />
+            </label>
+
+            <label class="field field-row">
+              <span class="field-label">
+                摄像头视觉 <span class="tag-qwebo">QwebO</span>
+                <span class="field-hint">Omni 全模态视觉。开启后持续把摄像头画面（~1fps）实时喂给模型，边看边聊</span>
+              </span>
+              <input id="qweboCamera" type="checkbox" class="switch" />
+            </label>
+
+            <p class="note" style="margin:6px 0 0">QwebO 使用阿里云百炼 <b>qwen3.5-omni-plus-realtime</b>（全模态：音频+视觉），人设用上方通用「人设 / 系统提示」，模型由后端配置固定。已内置 <b>run_codex</b> 工具（写代码/跑脚本/查项目）。开启摄像头后为「持续视觉」模式，模型能实时看到画面。</p>
           </div>
 
           <p class="note">修改后需重新点「开始通话」才生效。设置保存在浏览器本地。摄像头首次使用会请求授权。人设两家通用，音色各自独立；模型/温度/打断/摄像头为 Gemini 专属。</p>

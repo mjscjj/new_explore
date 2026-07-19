@@ -7,6 +7,8 @@ import dotenv from "dotenv";
 
 import { handleGeminiConnection } from "./providers/gemini/proxy.js";
 import { handleDoubaoConnection } from "./providers/doubao/proxy.js";
+import { handleQwenConnection } from "./providers/qwen/proxy.js";
+import { handleQweboConnection } from "./providers/qwebo/proxy.js";
 
 dotenv.config();
 
@@ -21,6 +23,8 @@ app.get("/api/providers", (req, res) => {
   res.json({
     gemini: !!process.env.GEMINI_API_KEY,
     doubao: !!(process.env.DOUBAO_APP_ID && process.env.DOUBAO_ACCESS_TOKEN),
+    qwen: !!process.env.QWEN_API_KEY,
+    qwebo: !!process.env.QWEBO_API_KEY,
   });
 });
 
@@ -31,6 +35,8 @@ const server = createServer(app);
 const routes = {
   "/ws/gemini": handleGeminiConnection,
   "/ws/doubao": handleDoubaoConnection,
+  "/ws/qwen": handleQwenConnection,
+  "/ws/qwebo": handleQweboConnection,
 };
 
 const wss = new WebSocketServer({ noServer: true });

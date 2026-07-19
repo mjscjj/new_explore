@@ -2,12 +2,16 @@ import { AudioRecorder } from "./core/audio-recorder.js";
 import { AudioPlayer } from "./core/audio-player.js";
 import { GeminiClient } from "./providers/gemini-client.js";
 import { DoubaoClient } from "./providers/doubao-client.js";
+import { QwenClient } from "./providers/qwen-client.js";
+import { QweboClient } from "./providers/qwebo-client.js";
 
 // provider 注册表：新增 provider 只需在这里加一行 + 一个 client 文件。
 // jitter：播放器起播缓冲秒数。豆包国内网络稳，用小值降延迟；Gemini 跨境抖动大，用大值防断续。
 const PROVIDERS = {
   doubao: { label: "豆包", ctor: DoubaoClient, sub: "豆包端到端实时语音 · 超拟人中文", jitter: 0.06 },
   gemini: { label: "Gemini", ctor: GeminiClient, sub: "Gemini Live · 端到端多模态、可看摄像头", jitter: 0.15 },
+  qwen: { label: "Qwen", ctor: QwenClient, sub: "通义千问 Qwen-Audio 实时语音 · 高表现力中文", jitter: 0.08 },
+  qwebo: { label: "QwebO", ctor: QweboClient, sub: "通义千问 Qwen-Omni 全模态实时 · 音频+视觉、可看摄像头", jitter: 0.08 },
 };
 
 // ---------- 设置 ----------
@@ -28,6 +32,17 @@ const settings = {
   camera: false,
   thinkingLevel: "", // Gemini 思考深度 minimal/low/medium/high，空=模型默认
   language: "", // Gemini 输出语言 BCP-47，空=自动
+  // ===== Qwen 专属（与豆包/Gemini 完全隔离）=====
+  qwenVoice: "", // Qwen 系统音色，空=默认 longanqian
+  qwenVad: "", // Qwen server_vad 灵敏度档位 LOW/''/HIGH（仅 server_vad 模式生效）
+  qwenTurnMode: "", // Qwen 交互模式：''=server_vad（声学）/ smart_turn（智能语义轮次）
+  qwenMaxHistory: 20, // Qwen 历史轮数 1-50，默认 20
+  // ===== QwebO / Qwen-Omni 专属（与其他 provider 完全隔离）=====
+  qweboVoice: "", // QwebO 音色，空=默认 Tina
+  qweboTurnMode: "", // QwebO 交互模式：''=server_vad / smart_turn
+  qweboVad: "", // QwebO server_vad 灵敏度 LOW/''/HIGH
+  qweboMaxHistory: 20, // QwebO 历史轮数 1-50
+  qweboCamera: false, // QwebO 摄像头视觉开关（Omni 支持视觉）
 };
 // 当前仍支持的 Gemini 模型（下拉里有的），用于把已下线/被移除的旧值迁移回默认。
 const SUPPORTED_GEMINI_MODELS = [
@@ -76,6 +91,17 @@ const vadSel = document.getElementById("vad");
 const cameraToggle = document.getElementById("camera");
 const thinkingLevelSel = document.getElementById("thinkingLevel");
 const languageSel = document.getElementById("language");
+const qwenVoiceSel = document.getElementById("qwenVoice");
+const qwenVadSel = document.getElementById("qwenVad");
+const qwenTurnModeSel = document.getElementById("qwenTurnMode");
+const qwenMaxHistoryInput = document.getElementById("qwenMaxHistory");
+const qwenMaxHistoryVal = document.getElementById("qwenMaxHistoryVal");
+const qweboVoiceSel = document.getElementById("qweboVoice");
+const qweboTurnModeSel = document.getElementById("qweboTurnMode");
+const qweboVadSel = document.getElementById("qweboVad");
+const qweboMaxHistoryInput = document.getElementById("qweboMaxHistory");
+const qweboMaxHistoryVal = document.getElementById("qweboMaxHistoryVal");
+const qweboCameraToggle = document.getElementById("qweboCamera");
 
 // ---------- 状态 ----------
 let client = null;
@@ -90,6 +116,12 @@ let cameraStream = null;
 let videoEl = null;
 const CAM_MAX_EDGE = 768;
 const CAM_JPEG_QUALITY = 0.6;
+// QwebO 持续帧模式：开摄像头后按 ~1fps 持续推帧的定时器
+let cameraFrameTimer = null;
+const CAM_FRAME_INTERVAL_MS = 1000; // 官方推荐 1fps
+// QwebO 视觉帧尺寸上限（Base64 后需 <256KB，480p/720p 最佳）
+const OMNI_CAM_MAX_EDGE = 640;
+const OMNI_CAM_JPEG_QUALITY = 0.5;
 
 // ---------- 工具 ----------
 function setStatus(text, cls = "") {
@@ -233,16 +265,36 @@ function stopCamera() {
   if (cameraStream) { cameraStream.getTracks().forEach((t) => t.stop()); cameraStream = null; }
   videoEl = null;
 }
-function captureFrame() {
+function captureFrame(maxEdge = CAM_MAX_EDGE, quality = CAM_JPEG_QUALITY) {
   if (!videoEl || !videoEl.videoWidth) return null;
   const vw = videoEl.videoWidth, vh = videoEl.videoHeight;
-  const scale = Math.min(1, CAM_MAX_EDGE / Math.min(vw, vh));
+  const scale = Math.min(1, maxEdge / Math.min(vw, vh));
   const w = Math.round(vw * scale), h = Math.round(vh * scale);
   const canvas = document.createElement("canvas");
   canvas.width = w; canvas.height = h;
   canvas.getContext("2d").drawImage(videoEl, 0, 0, w, h);
-  const dataUrl = canvas.toDataURL("image/jpeg", CAM_JPEG_QUALITY);
+  const dataUrl = canvas.toDataURL("image/jpeg", quality);
   return { base64: dataUrl.split(",")[1], dataUrl };
+}
+
+// QwebO 持续帧模式：开摄像头 → 按 ~1fps 持续把画面帧发给后端（后端 append 进 image buffer，
+// 跟随音频流由 server_vad 自动带走）。模型在正常对话轮里即可看到最新画面。
+async function startCameraStreaming() {
+  try {
+    await ensureCamera();
+  } catch (err) {
+    showError("无法访问摄像头：" + err.message);
+    return;
+  }
+  if (cameraFrameTimer) clearInterval(cameraFrameTimer);
+  cameraFrameTimer = setInterval(() => {
+    if (!connected || !client) return;
+    const frame = captureFrame(OMNI_CAM_MAX_EDGE, OMNI_CAM_JPEG_QUALITY);
+    if (frame) client.sendImage("image/jpeg", frame.base64);
+  }, CAM_FRAME_INTERVAL_MS);
+}
+function stopCameraStreaming() {
+  if (cameraFrameTimer) { clearInterval(cameraFrameTimer); cameraFrameTimer = null; }
 }
 
 // 模型发起工具调用（目前仅 Gemini 的 capture_camera）
@@ -279,31 +331,45 @@ providerSwitch.addEventListener("click", (e) => {
 function reflectProvider() {
   [...providerSwitch.children].forEach((c) => c.classList.toggle("active", c.dataset.provider === settings.provider));
   subtitleEl.textContent = PROVIDERS[settings.provider].sub;
-  // 设置面板按 provider 分区：只显示当前 provider 的专属区
-  const isGemini = settings.provider === "gemini";
-  document.querySelector(".gemini-only").classList.toggle("prov-hidden", !isGemini);
-  document.querySelector(".doubao-only").classList.toggle("prov-hidden", isGemini);
+  // 设置面板按 provider 分区：只显示当前 provider 的专属区，其余隐藏，互不影响
+  const p = settings.provider;
+  document.querySelector(".gemini-only").classList.toggle("prov-hidden", p !== "gemini");
+  document.querySelector(".doubao-only").classList.toggle("prov-hidden", p !== "doubao");
+  document.querySelector(".qwen-only").classList.toggle("prov-hidden", p !== "qwen");
+  document.querySelector(".qwebo-only").classList.toggle("prov-hidden", p !== "qwebo");
 }
 
 // ---------- 连接 ----------
 function buildConfig() {
-  // 音色按 provider 取各自的值，统一用契约里的 voice 字段下发
-  const voice = settings.provider === "gemini" ? settings.geminiVoice : settings.doubaoVoice;
+  // 音色 / VAD 按 provider 取各自的值，统一用契约里的 voice / vad 字段下发。
+  // 每个 provider 只认识自己的字段，不认识的忽略，彼此隔离互不影响。
+  let voice = settings.doubaoVoice;
+  let vad = settings.vad;
+  let camera = settings.camera;
+  if (settings.provider === "gemini") voice = settings.geminiVoice;
+  else if (settings.provider === "qwen") { voice = settings.qwenVoice; vad = settings.qwenVad; }
+  else if (settings.provider === "qwebo") { voice = settings.qweboVoice; vad = settings.qweboVad; camera = settings.qweboCamera; }
   return {
     systemPrompt: settings.systemPrompt,
     voice,
     model: settings.model,
     temperature: settings.temperature,
-    vad: settings.vad,
-    camera: settings.camera,
+    vad,
+    camera,
     thinkingLevel: settings.thinkingLevel,
     language: settings.language,
-    // 豆包专属（gemini proxy 会忽略）
+    // 豆包专属（其他 proxy 会忽略）
     doubaoStyle: settings.doubaoStyle,
     doubaoBotName: settings.doubaoBotName,
     doubaoSpeechRate: settings.doubaoSpeechRate,
     doubaoLoudness: settings.doubaoLoudness,
     doubaoSing: settings.doubaoSing,
+    // Qwen 专属（其他 proxy 会忽略）
+    qwenTurnMode: settings.qwenTurnMode,
+    qwenMaxHistory: settings.qwenMaxHistory,
+    // QwebO 专属（其他 proxy 会忽略）
+    qweboTurnMode: settings.qweboTurnMode,
+    qweboMaxHistory: settings.qweboMaxHistory,
   };
 }
 
@@ -331,6 +397,8 @@ function connect() {
       setDot("connected");
       recorder = new AudioRecorder((buf) => client.sendAudio(buf));
       try { await recorder.start(); } catch (e) { showError("无法访问麦克风：" + e.message); disconnect(); }
+      // QwebO 摄像头：持续帧模式（1fps 推帧），麦克风已启动后再开，保证“先有音频”
+      if (settings.provider === "qwebo" && settings.qweboCamera) startCameraStreaming();
     },
     onText,
     onAudio: (buf) => { if (player) player.enqueue(buf); },
@@ -356,6 +424,7 @@ async function disconnect() {
   if (recorder) { await recorder.stop(); recorder = null; }
   if (client) { client.close(); client = null; }
   if (player) { await player.close(); player = null; }
+  stopCameraStreaming();
   stopCamera();
   endTurn();
   toolCards.clear();
@@ -382,6 +451,19 @@ function fillPanel() {
   cameraToggle.checked = !!settings.camera;
   thinkingLevelSel.value = settings.thinkingLevel || "";
   languageSel.value = settings.language || "";
+  qwenVoiceSel.value = settings.qwenVoice || "";
+  qwenVadSel.value = settings.qwenVad || "";
+  qwenTurnModeSel.value = settings.qwenTurnMode || "";
+  qwenMaxHistoryInput.value = settings.qwenMaxHistory ?? 20;
+  qwenMaxHistoryVal.textContent = settings.qwenMaxHistory ?? 20;
+  reflectQwenVadDisabled();
+  qweboVoiceSel.value = settings.qweboVoice || "";
+  qweboTurnModeSel.value = settings.qweboTurnMode || "";
+  qweboVadSel.value = settings.qweboVad || "";
+  qweboMaxHistoryInput.value = settings.qweboMaxHistory ?? 20;
+  qweboMaxHistoryVal.textContent = settings.qweboMaxHistory ?? 20;
+  qweboCameraToggle.checked = !!settings.qweboCamera;
+  reflectQweboVadDisabled();
 }
 function readPanel() {
   settings.systemPrompt = promptInput.value.trim() || DEFAULT_PROMPT;
@@ -398,6 +480,26 @@ function readPanel() {
   settings.camera = cameraToggle.checked;
   settings.thinkingLevel = thinkingLevelSel.value;
   settings.language = languageSel.value;
+  settings.qwenVoice = qwenVoiceSel.value;
+  settings.qwenVad = qwenVadSel.value;
+  settings.qwenTurnMode = qwenTurnModeSel.value;
+  settings.qwenMaxHistory = Number(qwenMaxHistoryInput.value);
+  settings.qweboVoice = qweboVoiceSel.value;
+  settings.qweboTurnMode = qweboTurnModeSel.value;
+  settings.qweboVad = qweboVadSel.value;
+  settings.qweboMaxHistory = Number(qweboMaxHistoryInput.value);
+  settings.qweboCamera = qweboCameraToggle.checked;
+}
+// smart_turn 模式下 server_vad 的灵敏度参数无效，置灰打断灵敏度下拉
+function reflectQwenVadDisabled() {
+  const isSmart = qwenTurnModeSel.value === "smart_turn";
+  qwenVadSel.disabled = isSmart;
+  qwenVadSel.title = isSmart ? "smart_turn 模式下不适用" : "";
+}
+function reflectQweboVadDisabled() {
+  const isSmart = qweboTurnModeSel.value === "smart_turn";
+  qweboVadSel.disabled = isSmart;
+  qweboVadSel.title = isSmart ? "smart_turn 模式下不适用" : "";
 }
 function openSettings() { fillPanel(); settingsOverlay.classList.remove("hidden"); }
 function closeSettings() { settingsOverlay.classList.add("hidden"); }
@@ -408,6 +510,10 @@ settingsOverlay.addEventListener("click", (e) => { if (e.target === settingsOver
 tempInput.addEventListener("input", () => { tempVal.textContent = Number(tempInput.value).toFixed(1); });
 doubaoRateInput.addEventListener("input", () => { doubaoRateVal.textContent = doubaoRateInput.value; });
 doubaoLoudnessInput.addEventListener("input", () => { doubaoLoudnessVal.textContent = doubaoLoudnessInput.value; });
+qwenMaxHistoryInput.addEventListener("input", () => { qwenMaxHistoryVal.textContent = qwenMaxHistoryInput.value; });
+qwenTurnModeSel.addEventListener("change", reflectQwenVadDisabled);
+qweboMaxHistoryInput.addEventListener("input", () => { qweboMaxHistoryVal.textContent = qweboMaxHistoryInput.value; });
+qweboTurnModeSel.addEventListener("change", reflectQweboVadDisabled);
 saveSettingsBtn.addEventListener("click", () => {
   readPanel();
   persistSettings();
