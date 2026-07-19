@@ -28,11 +28,10 @@ function buildSessionConfig(config = {}) {
     bot_name: config.doubaoBotName || DEFAULT_BOT_NAME,
     system_role: config.systemPrompt || DEFAULT_SYSTEM_ROLE,
     speaking_style: config.doubaoStyle || DEFAULT_STYLE,
-    // 麦克风常开会有静音段；keep_alive 让服务端自动补静音，避免 52000042 静音超时断链。
-    extra: { input_mod: "keep_alive" },
   };
   // 唱歌能力 enable_music：放在 dialog.extra，仅 O2.0(1.2.1.1) 生效。开启才下发。
-  if (config.doubaoSing) dialog.extra.enable_music = true;
+  // 注意：不默认下发 input_mod:"keep_alive"——它会影响服务端全双工打断判定，导致打不断。
+  if (config.doubaoSing) dialog.extra = { enable_music: true };
 
   return { dialog, tts };
 }
