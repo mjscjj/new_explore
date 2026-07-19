@@ -40,6 +40,8 @@ export class QweboClient {
   stopTurn() { this._json({ type: "stop" }); }
   sendToolResult(id, name, response) { this._json({ type: "tool_result", id, name, response }); }
   sendImage(mime, base64) { this._json({ type: "image", mime, data: base64 }); }
+  // 摄像头帧发完的信号；后端保留在图像 buffer，等待下一句音频由 server_vad 一并提交。
+  sendImageDone() { this._json({ type: "image_done" }); }
 
   _json(obj) {
     if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(obj));

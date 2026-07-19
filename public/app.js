@@ -116,12 +116,11 @@ let cameraStream = null;
 let videoEl = null;
 const CAM_MAX_EDGE = 768;
 const CAM_JPEG_QUALITY = 0.6;
-// QwebO 持续帧模式：开摄像头后按 ~1fps 持续推帧的定时器
-let cameraFrameTimer = null;
-const CAM_FRAME_INTERVAL_MS = 1000; // 官方推荐 1fps
-// QwebO 视觉帧尺寸上限（Base64 后需 <256KB，480p/720p 最佳）
+// QwebO 工具触发截图：一次连截几张（官方建议图 <256KB、480p/720p）
 const OMNI_CAM_MAX_EDGE = 640;
 const OMNI_CAM_JPEG_QUALITY = 0.5;
+const CAM_SHOT_COUNT = 3; // 每次 capture_camera 连截张数
+const CAM_SHOT_INTERVAL_MS = 300; // 连截间隔
 
 // ---------- 工具 ----------
 function setStatus(text, cls = "") {
@@ -277,44 +276,47 @@ function captureFrame(maxEdge = CAM_MAX_EDGE, quality = CAM_JPEG_QUALITY) {
   return { base64: dataUrl.split(",")[1], dataUrl };
 }
 
-// QwebO 持续帧模式：开摄像头 → 按 ~1fps 持续把画面帧发给后端（后端 append 进 image buffer，
-// 跟随音频流由 server_vad 自动带走）。模型在正常对话轮里即可看到最新画面。
-async function startCameraStreaming() {
-  try {
-    await ensureCamera();
-  } catch (err) {
-    showError("无法访问摄像头：" + err.message);
-    return;
-  }
-  if (cameraFrameTimer) clearInterval(cameraFrameTimer);
-  cameraFrameTimer = setInterval(() => {
-    if (!connected || !client) return;
-    const frame = captureFrame(OMNI_CAM_MAX_EDGE, OMNI_CAM_JPEG_QUALITY);
-    if (frame) client.sendImage("image/jpeg", frame.base64);
-  }, CAM_FRAME_INTERVAL_MS);
-}
-function stopCameraStreaming() {
-  if (cameraFrameTimer) { clearInterval(cameraFrameTimer); cameraFrameTimer = null; }
-}
-
-// 模型发起工具调用（目前仅 Gemini 的 capture_camera）
+// 模型发起工具调用（capture_camera：Gemini 与 QwebO 均支持，实现略有差异）
 async function handleToolCall(id, name) {
   if (name !== "capture_camera") return;
   setOrb("thinking");
   setStatus("正在看摄像头…", "connecting");
   try {
     await ensureCamera();
-    const frame = captureFrame();
-    if (!frame) throw new Error("截图失败");
-    showSnapshot(frame.dataUrl);
-    client.sendToolResult(id, name, { status: "ok", note: "已截取一张照片，见下一条图片消息。" });
-    client.sendImage("image/jpeg", frame.base64);
+    if (settings.provider === "qwebo") {
+      await captureForQwebo(id, name);
+    } else {
+      const frame = captureFrame();
+      if (!frame) throw new Error("截图失败");
+      showSnapshot(frame.dataUrl);
+      client.sendToolResult(id, name, { status: "ok", note: "已截取一张照片，见下一条图片消息。" });
+      client.sendImage("image/jpeg", frame.base64);
+    }
     setStatus("已连接，说话吧", "listening");
     setOrb("listening");
   } catch (err) {
     client.sendToolResult(id, name, { status: "error", message: String(err) });
     setStatus("摄像头访问失败：" + err, "error");
   }
+}
+
+// QwebO 摄像头：连截 CAM_SHOT_COUNT 张（间隔 CAM_SHOT_INTERVAL_MS）→ 回 tool_result → 逐帧 sendImage
+// → sendImageDone。图像挂入上游 buffer，等待用户下一句话由 server_vad 连同音频一起提交。
+async function captureForQwebo(id, name) {
+  const frames = [];
+  for (let i = 0; i < CAM_SHOT_COUNT; i++) {
+    const frame = captureFrame(OMNI_CAM_MAX_EDGE, OMNI_CAM_JPEG_QUALITY);
+    if (frame) frames.push(frame);
+    if (i < CAM_SHOT_COUNT - 1) await new Promise((r) => setTimeout(r, CAM_SHOT_INTERVAL_MS));
+  }
+  if (!frames.length) throw new Error("截图失败");
+  showSnapshot(frames[frames.length - 1].dataUrl); // 预览用最后一张
+  client.sendToolResult(id, name, {
+    status: "ok",
+    note: `已拍摄 ${frames.length} 张画面并放入视觉缓冲。画面会在用户下一句话时一并送达，届时你就能看到并作答。`,
+  });
+  for (const f of frames) client.sendImage("image/jpeg", f.base64);
+  client.sendImageDone();
 }
 
 // ---------- provider 切换 ----------
@@ -397,8 +399,6 @@ function connect() {
       setDot("connected");
       recorder = new AudioRecorder((buf) => client.sendAudio(buf));
       try { await recorder.start(); } catch (e) { showError("无法访问麦克风：" + e.message); disconnect(); }
-      // QwebO 摄像头：持续帧模式（1fps 推帧），麦克风已启动后再开，保证“先有音频”
-      if (settings.provider === "qwebo" && settings.qweboCamera) startCameraStreaming();
     },
     onText,
     onAudio: (buf) => { if (player) player.enqueue(buf); },
@@ -424,7 +424,6 @@ async function disconnect() {
   if (recorder) { await recorder.stop(); recorder = null; }
   if (client) { client.close(); client = null; }
   if (player) { await player.close(); player = null; }
-  stopCameraStreaming();
   stopCamera();
   endTurn();
   toolCards.clear();

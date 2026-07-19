@@ -6,9 +6,10 @@
 // 且支持图像输入——实测能识别图片颜色）。
 //
 // 与 qwen-audio proxy 的差异：Omni 是「全模态」，支持视觉。因此在 qwen 那套能力之上，额外接入：
-//   - 摄像头「持续帧」视觉：前端开摄像头后按 ~1fps 持续推帧，proxy 把每帧 input_image_buffer.append
-//     进 buffer，跟随音频流由 server_vad 自动带走。模型在正常对话轮里即可看到最新画面。
-//     （不采用 capture_camera 工具式单帧提交：server_vad 下手动 commit 会与自动 VAD 冲突报错。）
+//   - capture_camera（前端执行工具）：模型自主决定何时看摄像头，前端截几张图回传。
+//     视觉时序（server_vad 原生方式，不与自动断句冲突）：模型触发工具 → 前端截图 → proxy 把图
+//     input_image_buffer.append 挂到 buffer（不手动 commit——server_vad 下手动 commit 会被上游拒绝
+//     报 buffer too small）→ 图随用户「下一句话」由 server_vad 自动连音频一起提交，模型那一轮即看到画面。
 import WebSocket from "ws";
 import { RUN_CODEX_DECLARATION, runCodex } from "../tools/codex.js";
 
@@ -23,6 +24,14 @@ const VAD_PRESET = {
   LOW: { threshold: 0.7, silence_duration_ms: 1200 },
   "": VAD_DEFAULT,
   HIGH: { threshold: 0.3, silence_duration_ms: 500 },
+};
+
+// 摄像头视觉工具（前端执行）：模型自主发起，前端截几张图 → tool_result + image 帧 + image_done 回传。
+const CAMERA_DECLARATION = {
+  name: "capture_camera",
+  description:
+    "拍摄用户当前摄像头画面。当你需要看到用户本人、用户展示的物体或周围环境才能回答时调用，例如用户说『你看我手里拿的是什么』『我穿的什么颜色』『帮我看看这个』。调用后会拿到最新画面。",
+  parameters: { type: "object", properties: {}, required: [] },
 };
 
 // run_codex 是「后端自执行工具」：模型发起后由本进程直接跑 codex，不转发前端。
@@ -52,12 +61,10 @@ export function handleQweboConnection(clientWs) {
   let activeModel = defaultModel;
   let responding = false;
   let currentResponseId = null; // 当前回复 id，打断时用于 response.cancel
-  let sentAudioOnce = false; // Omni 要求：发图像前至少发过一次音频
 
   clientWs.on("message", (data, isBinary) => {
     if (isBinary) {
       if (!upstreamReady) return;
-      sentAudioOnce = true;
       sendUpstream({
         type: "input_audio_buffer.append",
         audio: Buffer.from(data).toString("base64"),
@@ -82,16 +89,16 @@ export function handleQweboConnection(clientWs) {
       // server_vad / smart_turn 下由服务端自动检测轮次结束，客户端手动 commit 会与之冲突
       // 并可能报 "buffer too small"。仅 push-to-talk（本项目未启用）才需要手动 commit，这里不做。
     } else if (m.type === "tool_result") {
-      // 前端执行工具（capture_camera）的结果：写回 function_call_output，稍后 image 帧到达再触发响应
+      // capture_camera 的结果：写回 function_call_output（告知模型画面已就绪）。
+      // 【关键】不在这里 response.create——server_vad 模式下手动 commit 图会被上游拒绝（buffer too small）。
+      // 图只 append 挂在 buffer 上（见 image 分支），等用户下一句话时由 server_vad 自动连图一起带走。
       writeToolOutput(m.id, m.response || {});
     } else if (m.type === "image") {
-      // 摄像头视频帧（持续帧模式，1fps）。按 Omni 官方设计：图像帧跟随音频流实时 append，
-      // 由 server_vad 在检测到用户说话结束时，连同音频缓冲区一起自动提交给模型。
-      // 【关键】server_vad 模式下客户端绝不能手动 commit（会报 buffer too small），也不主动 response.create，
-      // 让图像自然“挂”在 buffer 上，等用户开口说话时这一轮就带上了最新画面。
-      // 前置：append 图前必须已 append 过音频——正常对话时麦克风一直在发，sentAudioOnce 恒为真。
-      if (!sentAudioOnce) return; // 还没开始说话，丢弃这帧（等麦克风音频先到）
+      // 摄像头工具截来的帧：直接 append 挂到 image buffer，跟随音频流。
+      // server_vad 会在用户下一次说话结束时，把这些图连同音频自动提交给模型（原生时序，不报错）。
       sendUpstream({ type: "input_image_buffer.append", image: m.data });
+    } else if (m.type === "image_done") {
+      // 所有帧已 append 完毕。server_vad 模式下无需客户端 commit，等用户开口自然带走，这里无动作。
     }
   });
 
@@ -140,9 +147,9 @@ export function handleQweboConnection(clientWs) {
 
     switch (t) {
       case "session.created": {
-        // 工具集合：run_codex 常驻（后端自执行）。
-        // 摄像头视觉走「持续帧」模式（前端 1fps 推帧，见 image 分支），不作为工具，故不注册 capture_camera。
+        // 工具集合：run_codex（后端自执行）常驻；capture_camera（前端执行）仅在用户开启摄像头开关时注册。
         const tools = [toOmniTool(RUN_CODEX_DECLARATION)];
+        if (config.camera) tools.push(toOmniTool(CAMERA_DECLARATION));
 
         const session = {
           modalities: ["text", "audio"],

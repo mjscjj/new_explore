@@ -326,12 +326,12 @@
             <label class="field field-row">
               <span class="field-label">
                 摄像头视觉 <span class="tag-qwebo">QwebO</span>
-                <span class="field-hint">Omni 全模态视觉。开启后持续把摄像头画面（~1fps）实时喂给模型，边看边聊</span>
+                <span class="field-hint">开启后模型可自主调摄像头工具，需要看画面时才拍几张（不常开推流）</span>
               </span>
               <input id="qweboCamera" type="checkbox" class="switch" />
             </label>
 
-            <p class="note" style="margin:6px 0 0">QwebO 使用阿里云百炼 <b>qwen3.5-omni-plus-realtime</b>（全模态：音频+视觉），人设用上方通用「人设 / 系统提示」，模型由后端配置固定。已内置 <b>run_codex</b> 工具（写代码/跑脚本/查项目）。开启摄像头后为「持续视觉」模式，模型能实时看到画面。</p>
+            <p class="note" style="margin:6px 0 0">QwebO 使用阿里云百炼 <b>qwen3.5-omni-plus-realtime</b>（全模态：音频+视觉），人设用上方通用「人设 / 系统提示」，模型由后端配置固定。已内置 <b>run_codex</b>（写代码/跑脚本/查项目）；开启摄像头后再加 <b>capture_camera</b>——模型判断需要看画面时主动拍照。<b>因阿里实时协议限制（自动断句模式下不能单独提交图像），拍照后画面会在你「下一句话」时一并送达模型</b>，所以调用后再说一句（如「看到了吗」）它就能看图作答。</p>
           </div>
 
           <p class="note">修改后需重新点「开始通话」才生效。设置保存在浏览器本地。摄像头首次使用会请求授权。人设两家通用，音色各自独立；模型/温度/打断/摄像头为 Gemini 专属。</p>
