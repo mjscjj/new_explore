@@ -23,6 +23,15 @@
             <button class="prov-btn" data-provider="qwen">Qwen</button>
             <button class="prov-btn" data-provider="qwebo">QwebO</button>
           </div>
+          <button id="clearChatBtn" class="icon-btn" title="清空聊天记录" aria-label="清空聊天记录">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 6h18"></path>
+              <path d="M8 6V4h8v2"></path>
+              <path d="M19 6l-1 14H6L5 6"></path>
+              <path d="M10 11v5"></path>
+              <path d="M14 11v5"></path>
+            </svg>
+          </button>
           <button id="settingsBtn" class="icon-btn" title="设置" aria-label="设置">
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="3"></circle>
@@ -39,6 +48,11 @@
           <img class="expr expr-speaking" src="assets/character/girl-speaking.png" alt="说话" />
           <img class="expr expr-thinking" src="assets/character/girl-thinking.png" alt="思考" />
           <img class="expr expr-camera" src="assets/character/girl-camera.png" alt="看" />
+        </div>
+        <div id="sleepIndicator" class="sleep-indicator hidden" aria-live="polite">
+          <span class="sleep-pulse" aria-hidden="true"></span>
+          <span>后台任务运行中</span>
+          <strong>休眠</strong>
         </div>
         <div id="status" class="status">未连接</div>
         <button id="connectBtn" class="connect-btn">开始通话</button>
@@ -68,6 +82,41 @@
             <textarea id="systemPrompt" rows="4"
               placeholder="描述机器人的性格、说话风格、任务…"></textarea>
           </label>
+
+          <label class="field">
+            <span class="field-label">
+              回复 / 翻译目标语言 <span class="tag-both">豆包·Gemini</span>
+              <span class="field-hint">普通回复和语音翻译都会使用该语言</span>
+            </span>
+            <select id="language">
+              <option value="zh-CN">简体中文（默认）</option>
+              <option value="en-US">英语</option>
+              <option value="ja-JP">日语</option>
+              <option value="ko-KR">韩语</option>
+              <option value="fr-FR">法语</option>
+              <option value="de-DE">德语</option>
+              <option value="es-ES">西班牙语</option>
+            </select>
+          </label>
+
+          <div class="gemini-only">
+            <label class="field">
+              <span class="field-label">
+                唤醒词 <span class="tag-gemini">Gemini</span>
+                <span class="field-hint">后台任务运行时，说出唤醒词可继续对话</span>
+              </span>
+              <input id="wakeWord" type="text" autocomplete="off" maxlength="20"
+                placeholder="小助手" />
+            </label>
+
+            <label class="field field-row">
+              <span class="field-label">
+                后台任务自动休眠 <span class="tag-gemini">Gemini</span>
+                <span class="field-hint">任务完成后自动唤醒并播报结果</span>
+              </span>
+              <input id="backgroundSleep" type="checkbox" class="switch" />
+            </label>
+          </div>
 
           <!-- 以下为豆包专属设置 -->
           <div class="doubao-only">
@@ -130,10 +179,9 @@
             <label class="field">
               <span class="field-label">音色 <span class="tag-gemini">Gemini</span></span>
               <select id="geminiVoice">
-                <option value="">默认</option>
+                <option value="Kore">Kore · 坚定（默认）</option>
                 <optgroup label="女声">
                   <option value="Zephyr">Zephyr · 明亮</option>
-                  <option value="Kore">Kore · 坚定</option>
                   <option value="Leda">Leda · 年轻</option>
                   <option value="Aoede">Aoede · 轻快</option>
                   <option value="Callirrhoe">Callirrhoe · 随和</option>
@@ -165,23 +213,6 @@
                   <option value="Sadachbia">Sadachbia · 活泼</option>
                   <option value="Sadaltager">Sadaltager · 博学</option>
                 </optgroup>
-              </select>
-            </label>
-
-            <label class="field">
-              <span class="field-label">
-                语言 <span class="tag-gemini">Gemini</span>
-                <span class="field-hint">锁定输出语言；留空则模型按你说的话自动判断</span>
-              </span>
-              <select id="language">
-                <option value="">自动（推荐）</option>
-                <option value="zh">中文</option>
-                <option value="en">英语</option>
-                <option value="ja">日语</option>
-                <option value="ko">韩语</option>
-                <option value="fr">法语</option>
-                <option value="de">德语</option>
-                <option value="es">西班牙语</option>
               </select>
             </label>
 
@@ -334,7 +365,7 @@
             <p class="note" style="margin:6px 0 0">QwebO 使用阿里云百炼 <b>qwen3.5-omni-plus-realtime</b>（全模态：音频+视觉），人设用上方通用「人设 / 系统提示」，模型由后端配置固定。已内置 <b>run_codex</b>（写代码/跑脚本/查项目）；开启摄像头后再加 <b>capture_camera</b>——模型判断需要看画面时主动拍照。<b>因阿里实时协议限制（自动断句模式下不能单独提交图像），拍照后画面会在你「下一句话」时一并送达模型</b>，所以调用后再说一句（如「看到了吗」）它就能看图作答。</p>
           </div>
 
-          <p class="note">修改后需重新点「开始通话」才生效。设置保存在浏览器本地。摄像头首次使用会请求授权。人设两家通用，音色各自独立；模型/温度/打断/摄像头为 Gemini 专属。</p>
+          <p class="note">修改后需重新点「开始通话」才生效。设置保存在浏览器本地。摄像头首次使用会请求授权。人设和语言为各 Provider 通用配置，音色与其他能力按 Provider 独立设置。</p>
         </div>
 
         <div class="panel-foot">

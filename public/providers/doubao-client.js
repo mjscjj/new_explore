@@ -36,6 +36,7 @@ export class DoubaoClient {
     if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(arrayBuffer);
   }
   stopTurn() { this._json({ type: "stop" }); }
+  sendWakeWord() {}
   // 豆包无视觉工具，这两个接口是接口一致性占位（app.js 只会对支持的 provider 调用）
   sendToolResult() {}
   sendImage() {}

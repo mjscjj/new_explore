@@ -11,8 +11,20 @@ const APP_KEY = "PlgvMymc7f3tQnJ6"; // 对话服务固定 app key
 const DEFAULT_SYSTEM_ROLE = "你是一个友好的中文语音助手，回答自然、简洁、口语化。";
 const DEFAULT_BOT_NAME = "小助手";
 const DEFAULT_STYLE = "自然亲切、有活力";
+const DEFAULT_LANGUAGE = "zh-CN";
+const LANGUAGE_NAMES = {
+  "zh-CN": "简体中文",
+  "en-US": "英语",
+  "ja-JP": "日语",
+  "ko-KR": "韩语",
+  "fr-FR": "法语",
+  "de-DE": "德语",
+  "es-ES": "西班牙语",
+};
 
 function buildSessionConfig(config = {}) {
+  const language = config.language || DEFAULT_LANGUAGE;
+  const languageName = LANGUAGE_NAMES[language] || language;
   // 关键：format 必须是 "pcm_s16le"（16-bit 有符号小端），与前端 Int16Array 播放一致。
   // 若用 "pcm" 豆包会返回 float32@48k，被当成 int16 播放就是“滋滋滋”噪音。
   const audioConfig = { channel: 1, format: "pcm_s16le", sample_rate: 24000 };
@@ -26,7 +38,9 @@ function buildSessionConfig(config = {}) {
 
   const dialog = {
     bot_name: config.doubaoBotName || DEFAULT_BOT_NAME,
-    system_role: config.systemPrompt || DEFAULT_SYSTEM_ROLE,
+    system_role:
+      `${config.systemPrompt || DEFAULT_SYSTEM_ROLE}\n\n` +
+      `始终使用${languageName}回复。执行翻译任务时，必须将${languageName}作为目标语言。`,
     speaking_style: config.doubaoStyle || DEFAULT_STYLE,
   };
   // 唱歌能力 enable_music：放在 dialog.extra，仅 O2.0(1.2.1.1) 生效。开启才下发。

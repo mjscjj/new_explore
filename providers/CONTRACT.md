@@ -38,6 +38,9 @@
 |---|---|---|
 | `voice` | gemini/doubao | 音色名（各家取值不同，空=默认） |
 | `systemPrompt` | gemini/doubao | 人设 / 系统提示 |
+| `language` | gemini/doubao | 回复及翻译目标语言，BCP-47；默认 `zh-CN` |
+| `wakeWord` | gemini | 后台任务休眠期间的唤醒词，默认“小助手” |
+| `backgroundSleep` | gemini | 后台工具运行时是否自动进入前台休眠 |
 | `model` | gemini | 模型 id |
 | `temperature` | gemini | 采样温度 |
 | `vad` | gemini | 打断灵敏度 `LOW`/``/`HIGH` |
@@ -54,6 +57,9 @@
 | 一轮结束 | JSON `{ "type": "turn_end" }` | 助手本轮说完 |
 | 工具调用 | JSON `{ "type": "tool_call", "id": "...", "name": "capture_camera" }` | 模型自主发起的**前端执行**工具，前端执行后用 `tool_result`(+`image`) 回应 |
 | 工具活动 | JSON `{ "type": "tool_activity", "phase": "start"\|"done", "id": "...", "name": "...", "args": {...}, "result": {...} }` | **后端自执行工具**（如 `run_codex`）的执行过程透传，仅供前端做折叠卡片展示；`start` 带入参，`done` 带入参+结果 |
+| 唤醒词命中 | JSON `{ "type": "wake_word", "text": "小助手" }` | 后台任务休眠期间，后端转写检测到配置的唤醒词 |
+| 唤醒监听状态 | JSON `{ "type": "wake_listener", "status": "connecting"\|"ready"\|"fallback" }` | 独立唤醒监听会话的状态 |
+| 休眠状态 | JSON `{ "type": "sleep_state", "state": "sleeping"\|"awake", "reason": "..." }` | 后端明确通知前端进入或退出后台任务休眠 |
 | 错误 | JSON `{ "type": "error", "message": "..." }` | fail-fast：直接透传，不静默降级 |
 
 ## 工具分两类
@@ -64,12 +70,20 @@
    `toolCall` 后**直接执行**，把结果通过上游 SDK 的 `sendToolResponse` 回灌，**不经过前端往返**。
    实现集中在 `providers/tools/*.js`，proxy 用一张 `BACKEND_TOOLS` 表区分。
 
+### list_codex_workspaces（后端自执行）
+
+- 读取 Codex 本地保存的工作区列表，返回项目名称、完整路径和当前选中状态。
+- 当用户提到其他项目但没有提供绝对路径时，模型应先调用本工具，再把选中的路径交给 `run_codex`。
+- 只返回已经存在的本地目录，不读取工作区文件内容。
+
 ### run_codex（后端自执行 · 异步）
 
 - 入参：`prompt`（任务，必填）、`working_dir`（可选，默认本项目目录，支持 `~`）。
 - 返回：`{ working_dir, exit_code, success, summary, duration_ms, error }`（工作目录回显）。
 - 固定策略（写死、不暴露给模型）：`--dangerously-bypass-approvals-and-sandbox`（full-access）、
   模型 `gpt-5.6-luna` + `model_reasoning_effort=medium`、`--skip-git-repo-check`、超时 300s。
+- 子进程会清除父 Codex Desktop 的任务级环境变量，并忽略父任务配置/命令规则，避免切换到其他
+  Codex 工作区后仍继承当前任务的单工作区沙箱；登录凭证仍复用用户本机的 Codex 账户。
 - **异步执行**（不阻塞语音）：模型发起后，后端**立即**回一个 `{status:"running"}` 的 toolResponse
   解除本轮等待；codex 在后台真正执行（**允许多任务并行**）。跑完后，后端把【入参+输出+背景】
   合成一段 user 内容用 `sendClientContent` 推给模型，模型再主动播报结果，保证上下文连贯。

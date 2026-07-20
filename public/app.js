@@ -16,6 +16,9 @@ const PROVIDERS = {
 
 // ---------- 设置 ----------
 const DEFAULT_PROMPT = "你是一个友好的中文语音助手。请用自然、口语化的中文回答，简洁一些，适合语音播报。";
+const DEFAULT_LANGUAGE = "zh-CN";
+const DEFAULT_WAKE_WORD = "小助手";
+const DEFAULT_GEMINI_VOICE = "Kore";
 const settings = {
   provider: "doubao",
   systemPrompt: DEFAULT_PROMPT,
@@ -25,13 +28,15 @@ const settings = {
   doubaoSpeechRate: 0, // 豆包语速 -50~100，0=正常（仅 2.0 生效）
   doubaoLoudness: 0, // 豆包音量 -50~100，0=正常（仅 2.0 生效）
   doubaoSing: false, // 豆包唱歌能力 enable_music（仅 O2.0 生效）
-  geminiVoice: "", // Gemini 音色，空=默认
+  geminiVoice: DEFAULT_GEMINI_VOICE,
   model: "models/gemini-3.1-flash-live-preview",
   temperature: 0.7,
   vad: "",
   camera: false,
   thinkingLevel: "", // Gemini 思考深度 minimal/low/medium/high，空=模型默认
-  language: "", // Gemini 输出语言 BCP-47，空=自动
+  language: DEFAULT_LANGUAGE, // 回复及翻译目标语言（BCP-47）
+  wakeWord: DEFAULT_WAKE_WORD,
+  backgroundSleep: true,
   // ===== Qwen 专属（与豆包/Gemini 完全隔离）=====
   qwenVoice: "", // Qwen 系统音色，空=默认 longanqian
   qwenVad: "", // Qwen server_vad 灵敏度档位 LOW/''/HIGH（仅 server_vad 模式生效）
@@ -51,6 +56,15 @@ const SUPPORTED_GEMINI_MODELS = [
 ];
 function loadSettings() {
   try { Object.assign(settings, JSON.parse(localStorage.getItem("voice_settings") || "{}")); } catch (_) {}
+  // 迁移旧版的空值和短语言码；语言现在默认中文，并对两家 provider 生效。
+  const languageAliases = {
+    zh: "zh-CN", en: "en-US", ja: "ja-JP", ko: "ko-KR",
+    fr: "fr-FR", de: "de-DE", es: "es-ES",
+  };
+  settings.language = languageAliases[settings.language] || settings.language || DEFAULT_LANGUAGE;
+  settings.wakeWord = String(settings.wakeWord || DEFAULT_WAKE_WORD).trim() || DEFAULT_WAKE_WORD;
+  settings.backgroundSleep = settings.backgroundSleep !== false;
+  settings.geminiVoice = settings.geminiVoice || DEFAULT_GEMINI_VOICE;
   // 迁移：旧版本存过 gemini-2.5-flash-native-audio-* 等已移除的模型，回落到默认 3.1，避免下拉出现死选项。
   if (!SUPPORTED_GEMINI_MODELS.includes(settings.model)) {
     settings.model = "models/gemini-3.1-flash-live-preview";
@@ -68,7 +82,9 @@ const logEl = document.getElementById("log");
 const emptyHint = document.getElementById("emptyHint");
 const statusDot = document.getElementById("statusDot");
 const subtitleEl = document.getElementById("subtitle");
+const sleepIndicator = document.getElementById("sleepIndicator");
 const providerSwitch = document.getElementById("providerSwitch");
+const clearChatBtn = document.getElementById("clearChatBtn");
 
 const settingsBtn = document.getElementById("settingsBtn");
 const settingsOverlay = document.getElementById("settingsOverlay");
@@ -91,6 +107,8 @@ const vadSel = document.getElementById("vad");
 const cameraToggle = document.getElementById("camera");
 const thinkingLevelSel = document.getElementById("thinkingLevel");
 const languageSel = document.getElementById("language");
+const wakeWordInput = document.getElementById("wakeWord");
+const backgroundSleepToggle = document.getElementById("backgroundSleep");
 const qwenVoiceSel = document.getElementById("qwenVoice");
 const qwenVadSel = document.getElementById("qwenVad");
 const qwenTurnModeSel = document.getElementById("qwenTurnMode");
@@ -110,6 +128,12 @@ let player = null;
 let connected = false;
 let curYou = null;
 let curBot = null;
+let sleeping = false;
+let wakeRecognition = null;
+let wakeRecognitionBlocked = false;
+let sleepTransition = Promise.resolve();
+let sleepTranscript = "";
+const activeBackgroundTasks = new Set();
 
 // 摄像头
 let cameraStream = null;
@@ -134,6 +158,7 @@ const EXPR_MAP = {
   listening: "listening",
   speaking: "speaking",
   thinking: "camera", // 截图/看摄像头时用"看"的表情
+  sleeping: "thinking",
 };
 function setOrb(state) {
   orbEl.className = "orb character" + (state ? " " + state : "");
@@ -153,6 +178,16 @@ function logLine(role, text) {
 }
 function onText(role, text, mode) {
   if (!text) return;
+  if (sleeping) {
+    // 浏览器不支持系统语音识别时，使用 provider 的实时转写作为唤醒词兜底。
+    if (role === "user" && !wakeRecognition) {
+      sleepTranscript = mode === "replace" ? text : sleepTranscript + text;
+      if (normalizeWakeText(sleepTranscript).includes(normalizeWakeText(settings.wakeWord))) {
+        void wakeUp("wake-word");
+      }
+    }
+    return;
+  }
   if (role === "user") {
     if (!curYou) curYou = logLine("you", "");
     curYou.textContent = mode === "replace" ? text : curYou.textContent + text;
@@ -165,6 +200,127 @@ function onText(role, text, mode) {
   logEl.scrollTop = logEl.scrollHeight;
 }
 function endTurn() { curYou = null; curBot = null; }
+
+function clearChatLog() {
+  [...logEl.children].forEach((child) => {
+    if (child !== emptyHint) child.remove();
+  });
+  if (emptyHint) emptyHint.style.display = "";
+  toolCards.clear();
+  endTurn();
+}
+
+// ---------- 后台任务休眠 / 唤醒词 ----------
+function normalizeWakeText(text) {
+  return String(text || "").toLocaleLowerCase().replace(/[\s，。！？、,.!?]/g, "");
+}
+
+function stopWakeWordListener() {
+  const recognition = wakeRecognition;
+  wakeRecognition = null;
+  if (recognition) {
+    recognition.onend = null;
+    try { recognition.abort(); } catch (_) {}
+  }
+}
+
+function startWakeWordListener() {
+  if (!sleeping || !connected || wakeRecognition || wakeRecognitionBlocked) return;
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!Recognition) {
+    setStatus("后台任务运行中，完成后自动唤醒", "sleeping");
+    return;
+  }
+
+  const recognition = new Recognition();
+  wakeRecognition = recognition;
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = /[\u3400-\u9fff]/.test(settings.wakeWord) ? "zh-CN" : settings.language;
+
+  recognition.onresult = (event) => {
+    const wakeWord = normalizeWakeText(settings.wakeWord);
+    for (let i = event.resultIndex; i < event.results.length; i += 1) {
+      const transcript = normalizeWakeText(event.results[i][0]?.transcript);
+      if (wakeWord && transcript.includes(wakeWord)) {
+        void wakeUp("wake-word");
+        return;
+      }
+    }
+  };
+  recognition.onerror = (event) => {
+    if (event.error === "not-allowed" || event.error === "service-not-allowed") {
+      wakeRecognitionBlocked = true;
+      setStatus("后台任务运行中，完成后自动唤醒", "sleeping");
+    }
+  };
+  recognition.onend = () => {
+    if (wakeRecognition === recognition) wakeRecognition = null;
+    if (sleeping && connected && !wakeRecognitionBlocked) {
+      window.setTimeout(startWakeWordListener, 250);
+    }
+  };
+
+  try {
+    recognition.start();
+  } catch (_) {
+    wakeRecognition = null;
+  }
+}
+
+async function startConversationRecorder() {
+  if (!connected || sleeping) return;
+  if (!recorder) recorder = new AudioRecorder((buf) => client?.sendAudio(buf));
+  await recorder.start();
+}
+
+async function stopConversationRecorder() {
+  if (!recorder) return;
+  await recorder.stop();
+  recorder = null;
+}
+
+function enterSleep() {
+  if (!connected || sleeping || !settings.backgroundSleep) return;
+  sleeping = true;
+  sleepTranscript = "";
+  wakeRecognitionBlocked = false;
+  if (player) player.clear();
+  endTurn();
+  setStatus(`休眠中，说“${settings.wakeWord}”唤醒`, "sleeping");
+  setOrb("sleeping");
+  setDot("sleeping");
+  sleepIndicator.classList.remove("hidden");
+
+  sleepTransition = (async () => {
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (Recognition) {
+      await stopConversationRecorder();
+      if (sleeping) startWakeWordListener();
+    }
+  })().catch((error) => showError("进入休眠失败：" + error.message));
+}
+
+async function wakeUp(reason) {
+  if (!sleeping) return;
+  sleeping = false;
+  sleepTranscript = "";
+  stopWakeWordListener();
+  if (reason === "wake-word") client?.sendWakeWord?.();
+  await sleepTransition;
+  if (!connected) return;
+
+  setStatus(reason === "task-complete" ? "后台任务已完成，正在恢复对话…" : "已唤醒，说话吧", "listening");
+  setOrb("listening");
+  setDot("connected");
+  sleepIndicator.classList.add("hidden");
+  try {
+    await startConversationRecorder();
+    setStatus(reason === "task-complete" ? "后台任务已完成" : "已唤醒，说话吧", "listening");
+  } catch (error) {
+    showError("恢复麦克风失败：" + error.message);
+  }
+}
 
 // 工具调用卡片：按 tool call id 复用同一张卡；start 建卡（运行中），done 填结果。
 // 默认折叠，点标题栏展开/收起。
@@ -212,12 +368,16 @@ function onToolActivity(m) {
     card.state.textContent = "运行中…";
     card.state.className = "tool-state running";
     card.resultWrap.style.display = "none";
+    if (m.name === "run_codex") activeBackgroundTasks.add(m.id);
   } else {
     const ok = m.result?.success !== false && !m.result?.error;
     card.state.textContent = ok ? "完成" : "失败";
     card.state.className = "tool-state " + (ok ? "ok" : "err");
     card.result.textContent = safeJson(m.result);
     card.resultWrap.style.display = "";
+    if (m.name === "run_codex") {
+      activeBackgroundTasks.delete(m.id);
+    }
   }
   logEl.scrollTop = logEl.scrollHeight;
 }
@@ -335,10 +495,10 @@ function reflectProvider() {
   subtitleEl.textContent = PROVIDERS[settings.provider].sub;
   // 设置面板按 provider 分区：只显示当前 provider 的专属区，其余隐藏，互不影响
   const p = settings.provider;
-  document.querySelector(".gemini-only").classList.toggle("prov-hidden", p !== "gemini");
-  document.querySelector(".doubao-only").classList.toggle("prov-hidden", p !== "doubao");
-  document.querySelector(".qwen-only").classList.toggle("prov-hidden", p !== "qwen");
-  document.querySelector(".qwebo-only").classList.toggle("prov-hidden", p !== "qwebo");
+  document.querySelectorAll(".gemini-only").forEach((el) => el.classList.toggle("prov-hidden", p !== "gemini"));
+  document.querySelectorAll(".doubao-only").forEach((el) => el.classList.toggle("prov-hidden", p !== "doubao"));
+  document.querySelectorAll(".qwen-only").forEach((el) => el.classList.toggle("prov-hidden", p !== "qwen"));
+  document.querySelectorAll(".qwebo-only").forEach((el) => el.classList.toggle("prov-hidden", p !== "qwebo"));
 }
 
 // ---------- 连接 ----------
@@ -360,6 +520,8 @@ function buildConfig() {
     camera,
     thinkingLevel: settings.thinkingLevel,
     language: settings.language,
+    wakeWord: settings.wakeWord,
+    backgroundSleep: settings.backgroundSleep,
     // 豆包专属（其他 proxy 会忽略）
     doubaoStyle: settings.doubaoStyle,
     doubaoBotName: settings.doubaoBotName,
@@ -385,7 +547,7 @@ function connect() {
   player = new AudioPlayer(24000, { jitterBufferSec: conf.jitter ?? 0.08 });
   window.__player = player; // 调试：控制台可看 __player._underruns / 调 __player.jitterBufferSec
   player.onStateChange = (playing) => {
-    if (connected) { setStatus(playing ? "对方说话中…" : "正在聆听…", playing ? "speaking" : "listening"); setOrb(playing ? "speaking" : "listening"); }
+    if (connected && !sleeping) { setStatus(playing ? "对方说话中…" : "正在聆听…", playing ? "speaking" : "listening"); setOrb(playing ? "speaking" : "listening"); }
   };
 
   client = new conf.ctor({
@@ -397,15 +559,24 @@ function connect() {
       setStatus("已连接，说话吧", "listening");
       setOrb("listening");
       setDot("connected");
-      recorder = new AudioRecorder((buf) => client.sendAudio(buf));
-      try { await recorder.start(); } catch (e) { showError("无法访问麦克风：" + e.message); disconnect(); }
+      try { await startConversationRecorder(); } catch (e) { showError("无法访问麦克风：" + e.message); disconnect(); }
     },
     onText,
-    onAudio: (buf) => { if (player) player.enqueue(buf); },
+    onAudio: (buf) => { if (player && !sleeping) player.enqueue(buf); },
     onToolCall: (id, name) => handleToolCall(id, name),
     onToolActivity: (m) => onToolActivity(m),
-    onInterrupted: () => { if (player) player.clear(); curBot = null; setStatus("正在聆听…", "listening"); setOrb("listening"); },
-    onTurnEnd: () => { endTurn(); setStatus("正在聆听…", "listening"); setOrb("listening"); },
+    onWakeWord: () => { if (sleeping) void wakeUp("wake-word"); },
+    onSleepState: (m) => {
+      if (m.state === "sleeping") enterSleep();
+      if (m.state === "awake" && sleeping) void wakeUp(m.reason || "task-complete");
+    },
+    onWakeListener: (status) => {
+      if (!sleeping) return;
+      if (status === "ready") setStatus(`休眠中，正在监听“${settings.wakeWord}”`, "sleeping");
+      if (status === "fallback") setStatus(`休眠中，说“${settings.wakeWord}”唤醒`, "sleeping");
+    },
+    onInterrupted: () => { if (player) player.clear(); curBot = null; if (!sleeping) { setStatus("正在聆听…", "listening"); setOrb("listening"); } },
+    onTurnEnd: () => { endTurn(); if (!sleeping) { setStatus("正在聆听…", "listening"); setOrb("listening"); } },
     onError: (m) => showError(m),
     onClose: () => { if (connected) disconnect(); },
   });
@@ -415,12 +586,16 @@ function connect() {
 
 async function disconnect() {
   connected = false;
+  sleeping = false;
+  stopWakeWordListener();
+  activeBackgroundTasks.clear();
   connectBtn.disabled = false;
   connectBtn.textContent = "开始通话";
   connectBtn.classList.remove("active");
   setStatus("已结束");
   setOrb("");
   setDot("");
+  sleepIndicator.classList.add("hidden");
   if (recorder) { await recorder.stop(); recorder = null; }
   if (client) { client.close(); client = null; }
   if (player) { await player.close(); player = null; }
@@ -430,6 +605,7 @@ async function disconnect() {
 }
 
 connectBtn.addEventListener("click", () => (connected ? disconnect() : connect()));
+clearChatBtn.addEventListener("click", clearChatLog);
 
 // ---------- 设置面板 ----------
 function fillPanel() {
@@ -442,14 +618,16 @@ function fillPanel() {
   doubaoLoudnessInput.value = settings.doubaoLoudness ?? 0;
   doubaoLoudnessVal.textContent = settings.doubaoLoudness ?? 0;
   doubaoSingToggle.checked = !!settings.doubaoSing;
-  geminiVoiceSel.value = settings.geminiVoice || "";
+  geminiVoiceSel.value = settings.geminiVoice || DEFAULT_GEMINI_VOICE;
   modelSel.value = settings.model;
   tempInput.value = settings.temperature;
   tempVal.textContent = Number(settings.temperature).toFixed(1);
   vadSel.value = settings.vad || "";
   cameraToggle.checked = !!settings.camera;
   thinkingLevelSel.value = settings.thinkingLevel || "";
-  languageSel.value = settings.language || "";
+  languageSel.value = settings.language || DEFAULT_LANGUAGE;
+  wakeWordInput.value = settings.wakeWord || DEFAULT_WAKE_WORD;
+  backgroundSleepToggle.checked = settings.backgroundSleep !== false;
   qwenVoiceSel.value = settings.qwenVoice || "";
   qwenVadSel.value = settings.qwenVad || "";
   qwenTurnModeSel.value = settings.qwenTurnMode || "";
@@ -478,7 +656,9 @@ function readPanel() {
   settings.vad = vadSel.value;
   settings.camera = cameraToggle.checked;
   settings.thinkingLevel = thinkingLevelSel.value;
-  settings.language = languageSel.value;
+  settings.language = languageSel.value || DEFAULT_LANGUAGE;
+  settings.wakeWord = wakeWordInput.value.trim() || DEFAULT_WAKE_WORD;
+  settings.backgroundSleep = backgroundSleepToggle.checked;
   settings.qwenVoice = qwenVoiceSel.value;
   settings.qwenVad = qwenVadSel.value;
   settings.qwenTurnMode = qwenTurnModeSel.value;

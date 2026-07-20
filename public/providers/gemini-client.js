@@ -22,6 +22,9 @@ export class GeminiClient {
           case "text": this.h.onText?.(m.role, m.text, m.mode); break;
           case "tool_call": this.h.onToolCall?.(m.id, m.name); break;
           case "tool_activity": this.h.onToolActivity?.(m); break;
+          case "wake_word": this.h.onWakeWord?.(m.text); break;
+          case "wake_listener": this.h.onWakeListener?.(m.status); break;
+          case "sleep_state": this.h.onSleepState?.(m); break;
           case "interrupted": this.h.onInterrupted?.(); break;
           case "turn_end": this.h.onTurnEnd?.(); break;
           case "error": this.h.onError?.(m.message); break;
@@ -38,6 +41,7 @@ export class GeminiClient {
     if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(arrayBuffer);
   }
   stopTurn() { this._json({ type: "stop" }); }
+  sendWakeWord() { this._json({ type: "wake_word" }); }
   sendToolResult(id, name, response) { this._json({ type: "tool_result", id, name, response }); }
   sendImage(mime, base64) { this._json({ type: "image", mime, data: base64 }); }
 
